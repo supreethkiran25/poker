@@ -412,7 +412,7 @@ export const PokerTable: React.FC<PokerTableProps> = ({
         style={{ paddingBottom: 'max(10px, env(safe-area-inset-bottom, 10px))' }}
       >
         <div className="w-full max-w-xl">
-          {/* Phase: Hand Complete - Next Hand Readiness Controls */}
+          {/* Phase: Hand Complete - Next Hand Auto-Continue / Controls */}
           {gameState.phase === 'HAND_COMPLETE' ? (
             <div className="w-full bg-zinc-950/95 backdrop-blur-xl p-3 rounded-2xl border border-amber-500/40 shadow-2xl flex flex-col sm:flex-row items-center justify-between gap-3 animate-fade-in">
               <div className="text-left">
@@ -420,32 +420,21 @@ export const PokerTable: React.FC<PokerTableProps> = ({
                   Hand #{gameState.handNumber} Complete
                 </div>
                 <div className="text-[10px] text-zinc-400 font-mono">
-                  {nextHandReadyList.length} player(s) ready for next hand
+                  {gameState.players.some((p) => p.chips === 0)
+                    ? 'Waiting for players with 0 chips to rebuy…'
+                    : 'Dealing next hand automatically…'}
                 </div>
               </div>
 
               <div className="flex items-center gap-2 w-full sm:w-auto">
-                {/* Player Ready for Next Hand */}
-                <button
-                  onClick={() => onReadyForNextHand && onReadyForNextHand(!amIReadyForNext)}
-                  className={`flex-1 sm:flex-none px-4 py-2.5 rounded-xl font-bold text-xs uppercase tracking-wider transition flex items-center justify-center gap-1.5 ${
-                    amIReadyForNext
-                      ? 'bg-zinc-800 text-emerald-400 border border-emerald-500/40'
-                      : 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-lg'
-                  }`}
-                >
-                  <Check className="w-4 h-4" />
-                  <span>{amIReadyForNext ? 'Ready ✓' : 'Ready for Next Hand'}</span>
-                </button>
-
-                {/* Host Deal Next Hand */}
-                {isHost && (
+                {/* Immediate Deal Button */}
+                {onDealNextHand && (
                   <button
                     onClick={onDealNextHand}
                     className="flex-1 sm:flex-none px-4 py-2.5 bg-gradient-to-r from-amber-500 to-yellow-500 hover:from-amber-400 text-zinc-950 font-black text-xs uppercase tracking-wider rounded-xl shadow-lg transition flex items-center justify-center gap-1.5"
                   >
                     <Play className="w-4 h-4 fill-zinc-950" />
-                    <span>Deal Next Hand</span>
+                    <span>Deal Now</span>
                   </button>
                 )}
               </div>

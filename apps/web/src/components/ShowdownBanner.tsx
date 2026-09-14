@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import type { HandResult, PlayerPublicState } from '@poker/shared';
 import { formatRupee, VIRTUAL_CURRENCY_DISCLAIMER } from '@poker/shared';
 import confetti from 'canvas-confetti';
@@ -47,6 +47,17 @@ export const ShowdownBanner: React.FC<ShowdownBannerProps> = ({
       });
     }
   }, [isMeWinner]);
+
+  // Auto-deal countdown (4 seconds)
+  const [countdown, setCountdown] = useState<number>(4);
+
+  useEffect(() => {
+    if (playersWithZero.length > 0) return;
+    const interval = setInterval(() => {
+      setCountdown((prev: number) => Math.max(0, prev - 1));
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [playersWithZero.length]);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md p-3 sm:p-4 animate-fade-in overflow-y-auto">
@@ -104,7 +115,7 @@ export const ShowdownBanner: React.FC<ShowdownBannerProps> = ({
         })}
 
         {/* Zero chips alert if anyone busted */}
-        {playersWithZero.length > 0 && (
+        {playersWithZero.length > 0 ? (
           <div className="my-2 p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/30 text-xs text-amber-300 font-mono w-full">
             {amOut ? (
               <span>⚠️ You have ₹0 chips! Rebuy below to deal the next hand.</span>
@@ -114,10 +125,15 @@ export const ShowdownBanner: React.FC<ShowdownBannerProps> = ({
               </span>
             )}
           </div>
+        ) : (
+          <div className="my-2 p-2 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-xs text-emerald-300 font-mono w-full flex items-center justify-center gap-2">
+            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
+            <span>Dealing next hand automatically in {countdown}s…</span>
+          </div>
         )}
 
-        {/* ── ACTION BUTTONS INSIDE SHOWDOWN BANNER (Fixes Getting Stuck!) ── */}
-        <div className="mt-4 flex flex-col sm:flex-row items-center gap-2.5 w-full">
+        {/* ── ACTION BUTTONS ── */}
+        <div className="mt-2 flex flex-col items-center gap-2 w-full">
           {amOut && onRebuy ? (
             <button
               onClick={onRebuy}
@@ -127,33 +143,15 @@ export const ShowdownBanner: React.FC<ShowdownBannerProps> = ({
               <span>Rebuy Chips to Play</span>
             </button>
           ) : (
-            <>
-              {/* Ready for Next Hand */}
-              {onReadyForNext && (
-                <button
-                  onClick={onReadyForNext}
-                  className={`flex-1 w-full sm:w-auto py-3 px-4 rounded-2xl font-bold text-xs uppercase tracking-wider transition active:scale-95 flex items-center justify-center gap-2 ${
-                    isReadyForNext
-                      ? 'bg-zinc-800 text-emerald-400 border border-emerald-500/40'
-                      : 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-lg'
-                  }`}
-                >
-                  <Check className="w-4 h-4" />
-                  <span>{isReadyForNext ? 'Ready ✓ (Waiting)' : 'Ready for Next Hand'}</span>
-                </button>
-              )}
-
-              {/* Host Deal Next Hand */}
-              {isHost && onDealNext && (
-                <button
-                  onClick={onDealNext}
-                  className="flex-1 w-full sm:w-auto py-3 px-4 bg-gradient-to-r from-amber-500 via-amber-400 to-yellow-500 hover:from-amber-400 text-zinc-950 font-black text-xs uppercase tracking-wider rounded-2xl shadow-xl transition active:scale-95 flex items-center justify-center gap-2"
-                >
-                  <Play className="w-4 h-4 fill-zinc-950" />
-                  <span>Deal Next Hand</span>
-                </button>
-              )}
-            </>
+            onDealNext && (
+              <button
+                onClick={onDealNext}
+                className="w-full py-2.5 px-4 bg-zinc-900 hover:bg-zinc-800 text-amber-300 border border-amber-500/40 font-bold text-xs uppercase tracking-wider rounded-2xl shadow transition active:scale-95 flex items-center justify-center gap-2"
+              >
+                <Play className="w-4 h-4 fill-amber-400" />
+                <span>Deal Immediately (Skip {countdown}s)</span>
+              </button>
+            )
           )}
         </div>
 

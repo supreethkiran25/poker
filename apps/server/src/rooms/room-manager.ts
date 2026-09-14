@@ -40,6 +40,7 @@ export class Room {
   public recentActionIds: Set<string> = new Set();
   public timerHandle: NodeJS.Timeout | null = null;
   public turnExpiresAt: number | null = null;
+  public nextHandTimerHandle: NodeJS.Timeout | null = null;
   public nextHandReadyPlayers: Set<string> = new Set();
   public onStateChanged?: () => void;
 
@@ -219,8 +220,16 @@ export class Room {
     }
   }
 
+  private clearNextHandTimer(): void {
+    if (this.nextHandTimerHandle) {
+      clearTimeout(this.nextHandTimerHandle);
+      this.nextHandTimerHandle = null;
+    }
+  }
+
   private onHandFinished(): void {
     this.clearTurnTimer();
+    this.clearNextHandTimer();
     const state = this.engine.toPublicState('system');
     if (state.lastHandResult) {
       recordHandHistory(
@@ -234,8 +243,22 @@ export class Room {
       );
     }
 
-    // Hand finished: players can review results, rebuy if 0, and click Ready for Next Hand
     this.nextHandReadyPlayers.clear();
+
+    // Check if at least 2 players have chips to continue
+    const activeWithChips = this.engine.getPlayers().filter((p) => p !== null && p.chips > 0);
+    if (activeWithChips.length >= 2) {
+      // Auto-continue to next hand after 4 seconds (3-5 seconds window)
+      this.nextHandTimerHandle = setTimeout(() => {
+        this.nextHandTimerHandle = null;
+        if (this.engine.getPhase() === 'HAND_COMPLETE') {
+          const res = this.startNextHand();
+          if (res.success && this.onStateChanged) {
+            this.onStateChanged();
+          }
+        }
+      }, 4000);
+    }
   }
 
   public rebuyPlayer(playerId: string, amount?: number): boolean {
@@ -247,6 +270,24 @@ export class Room {
     const added = this.engine.addChips(playerId, finalAmount);
     if (added) {
       player.chips = this.engine.getPlayer(playerId)?.chips ?? (player.chips + finalAmount);
+
+      // If waiting at HAND_COMPLETE and now >= 2 players have chips, schedule auto-deal
+      const activeWithChips = this.engine.getPlayers().filter((p) => p !== null && p.chips > 0);
+      if (
+        activeWithChips.length >= 2 &&
+        this.engine.getPhase() === 'HAND_COMPLETE' &&
+        !this.nextHandTimerHandle
+      ) {
+        this.nextHandTimerHandle = setTimeout(() => {
+          this.nextHandTimerHandle = null;
+          if (this.engine.getPhase() === 'HAND_COMPLETE') {
+            const res = this.startNextHand();
+            if (res.success && this.onStateChanged) {
+              this.onStateChanged();
+            }
+          }
+        }, 3000);
+      }
       return true;
     }
     return false;
@@ -272,6 +313,7 @@ export class Room {
   }
 
   public startNextHand(): { success: boolean; reason?: string } {
+    this.clearNextHandTimer();
     const activeWithChips = this.engine.getPlayers().filter((p) => p !== null && p.chips > 0);
     if (activeWithChips.length < 2) {
       return {
