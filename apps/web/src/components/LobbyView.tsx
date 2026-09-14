@@ -40,8 +40,8 @@ export const LobbyView: React.FC<LobbyViewProps> = ({
   };
 
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center p-4">
-      <div className="w-full max-w-3xl bg-zinc-950/90 backdrop-blur-xl border border-amber-500/20 rounded-3xl p-6 sm:p-8 shadow-2xl flex flex-col gap-5">
+    <div className="min-h-dvh w-full flex flex-col items-center justify-start sm:justify-center p-4 overflow-y-auto">
+      <div className="w-full max-w-3xl bg-zinc-950/90 backdrop-blur-xl border border-amber-500/20 rounded-3xl p-5 sm:p-8 shadow-2xl flex flex-col gap-4 my-4">
         {/* Header with Room Code & Invite Link */}
         <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pb-4 border-b border-zinc-800">
           <div className="text-center sm:text-left">

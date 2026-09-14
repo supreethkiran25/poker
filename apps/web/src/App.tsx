@@ -50,7 +50,7 @@ export function App() {
   };
 
   return (
-    <div className="relative min-h-screen bg-[#07090e] text-zinc-100 font-sans">
+    <div className="relative w-full h-dvh overflow-hidden bg-[#07090e] text-zinc-100 font-sans">
       {/* Reconnection banner if disconnected */}
       {!isConnected && (
         <div className="fixed top-0 inset-x-0 z-50 bg-rose-600/90 text-white text-xs font-mono py-1 px-4 flex items-center justify-center gap-2 backdrop-blur-md shadow-lg">

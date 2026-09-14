@@ -6,17 +6,26 @@
   color-scheme: dark;
 }
 
-body {
-  background: radial-gradient(circle at 50% 20%, #171b26 0%, #0a0d14 100%);
+html, body, #root {
   margin: 0;
   padding: 0;
+  width: 100%;
+  height: 100%;
+  /* Prevent rubber-band bounce from causing layout shifts */
+  overscroll-behavior: none;
+}
+
+body {
+  background: radial-gradient(circle at 50% 20%, #171b26 0%, #0a0d14 100%);
   font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 /* Custom scrollbars */
 ::-webkit-scrollbar {
-  width: 5px;
-  height: 5px;
+  width: 4px;
+  height: 4px;
 }
 ::-webkit-scrollbar-track {
   background: rgba(0, 0, 0, 0.4);
@@ -29,54 +38,66 @@ body {
   background: rgba(212, 175, 55, 0.7);
 }
 
-/* Authentic Casino Poker Table: Leather Rail + Woven Felt */
+/* ── Authentic Casino Poker Table ── */
+
 .poker-table-outer-rail {
   background: linear-gradient(145deg, #2b1d14 0%, #160e0a 50%, #0d0806 100%);
-  border: 4px solid #3d2b1f;
-  box-shadow: 
-    0 30px 80px rgba(0, 0, 0, 0.95),
-    inset 0 4px 10px rgba(255, 255, 255, 0.1),
-    inset 0 -6px 16px rgba(0, 0, 0, 0.9);
-  padding: 18px;
-  border-radius: 240px;
+  border: clamp(3px, 0.6vw, 6px) solid #3d2b1f;
+  box-shadow:
+    0 20px 60px rgba(0, 0, 0, 0.95),
+    inset 0 3px 8px rgba(255, 255, 255, 0.08),
+    inset 0 -4px 12px rgba(0, 0, 0, 0.85);
+  padding: clamp(8px, 1.5vw, 18px);
+  border-radius: 9999px;
+  box-sizing: border-box;
 }
 
 .poker-felt-surface {
   background-color: #0b3420;
-  background-image: 
+  background-image:
     radial-gradient(circle at 50% 50%, #124d2f 0%, #082918 80%, #04180e 100%),
-    repeating-linear-gradient(45deg, rgba(255, 255, 255, 0.012) 0px, rgba(255, 255, 255, 0.012) 2px, transparent 2px, transparent 6px);
-  box-shadow: 
-    inset 0 0 100px rgba(0, 0, 0, 0.85),
-    inset 0 0 20px rgba(0, 0, 0, 0.9);
-  border-radius: 220px;
+    repeating-linear-gradient(
+      45deg,
+      rgba(255, 255, 255, 0.010) 0px,
+      rgba(255, 255, 255, 0.010) 2px,
+      transparent 2px,
+      transparent 6px
+    );
+  box-shadow:
+    inset 0 0 80px rgba(0, 0, 0, 0.8),
+    inset 0 0 16px rgba(0, 0, 0, 0.85);
+  border-radius: 9999px;
   position: relative;
-  overflow: hidden;
+  overflow: visible; /* Allow player pods to overflow the oval edge */
+  width: 100%;
+  height: 100%;
+  box-sizing: border-box;
 }
 
-/* Racetrack betting line on felt */
+/* Racetrack betting line */
 .poker-betting-line {
   position: absolute;
-  inset: 24px;
-  border: 2px dashed rgba(212, 175, 55, 0.25);
-  border-radius: 200px;
+  inset: clamp(10px, 3%, 24px);
+  border: 2px dashed rgba(212, 175, 55, 0.22);
+  border-radius: 9999px;
   pointer-events: none;
+  z-index: 0;
 }
 
-/* Playing Card */
+/* ── Playing Card ── */
 .card-shadow {
-  box-shadow: 
-    0 8px 20px rgba(0, 0, 0, 0.6),
+  box-shadow:
+    0 6px 16px rgba(0, 0, 0, 0.6),
     0 2px 4px rgba(0, 0, 0, 0.4);
 }
 
-/* Active Turn Ring */
+/* ── Active Turn Glow ── */
 @keyframes activePlayerGlow {
   0%, 100% {
-    box-shadow: 0 0 0 2px #d4af37, 0 0 20px rgba(212, 175, 55, 0.6);
+    box-shadow: 0 0 0 2px #d4af37, 0 0 16px rgba(212, 175, 55, 0.55);
   }
   50% {
-    box-shadow: 0 0 0 4px #f3e5ab, 0 0 35px rgba(243, 229, 171, 0.8);
+    box-shadow: 0 0 0 3px #f3e5ab, 0 0 28px rgba(243, 229, 171, 0.75);
   }
 }
 
@@ -84,11 +105,11 @@ body {
   animation: activePlayerGlow 1.8s infinite ease-in-out;
 }
 
-/* Card Deal Animation */
+/* ── Card Deal Animation ── */
 @keyframes dealCard {
   0% {
     opacity: 0;
-    transform: translateY(-30px) scale(0.85);
+    transform: translateY(-24px) scale(0.85);
   }
   100% {
     opacity: 1;
@@ -100,7 +121,7 @@ body {
   animation: dealCard 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
-/* Floating Emoji Reaction */
+/* ── Floating Emoji Reaction ── */
 @keyframes floatReaction {
   0% {
     opacity: 0;
@@ -112,11 +133,11 @@ body {
   }
   80% {
     opacity: 1;
-    transform: translateY(-45px) scale(1.05);
+    transform: translateY(-40px) scale(1.05);
   }
   100% {
     opacity: 0;
-    transform: translateY(-75px) scale(0.9);
+    transform: translateY(-70px) scale(0.9);
   }
 }
 
@@ -124,7 +145,25 @@ body {
   animation: floatReaction 2.2s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
 }
 
+/* ── Gold Text ── */
 .gold-text {
   color: #f3e5ab;
-  text-shadow: 0 1px 2px rgba(0,0,0,0.8);
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8);
+}
+
+/* ── Fade-in ── */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.2s ease-out forwards;
+}
+
+/* ── Safe area utilities ── */
+@supports (padding-bottom: env(safe-area-inset-bottom)) {
+  .pb-safe {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
 }

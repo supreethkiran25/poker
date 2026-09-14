@@ -43,13 +43,18 @@ export const PokerTable: React.FC<PokerTableProps> = ({
   const totalSeats = roomState.config.maxPlayers;
   const mySeatIndex = me ? me.seatIndex : 0;
 
-  const getSeatPositionClass = (seatIndex: number) => {
+  /**
+   * Position players around an ellipse. rx/ry are percentage radii of the
+   * table container. Bottom player (me) starts at angle 90° (bottom center).
+   */
+  const getSeatPositionStyle = (seatIndex: number) => {
     const relativePos = (seatIndex - mySeatIndex + totalSeats) % totalSeats;
     const angleDeg = (relativePos / totalSeats) * 360 + 90;
     const angleRad = (angleDeg * Math.PI) / 180;
 
-    const rx = 43;
-    const ry = 36;
+    // Slightly inset from edge so pods don't clip the rail
+    const rx = 41;
+    const ry = 34;
     const left = 50 + rx * Math.cos(angleRad);
     const top = 50 + ry * Math.sin(angleRad);
 
@@ -61,29 +66,29 @@ export const PokerTable: React.FC<PokerTableProps> = ({
   };
 
   return (
-    <div className="relative w-full h-screen flex flex-col items-center justify-between overflow-hidden bg-[#06080d] p-2 sm:p-4 select-none">
-      {/* Top Club Status Bar */}
-      <div className="w-full max-w-6xl flex items-center justify-between z-30 px-2 py-1">
-        <div className="flex items-center gap-3">
-          <div className="flex items-center gap-2 px-3 py-1 bg-zinc-900/90 rounded-xl border border-zinc-800 text-xs font-mono">
+    <div className="relative w-full h-dvh flex flex-col bg-[#06080d] select-none overflow-hidden">
+
+      {/* ── TOP STATUS BAR ── */}
+      <div className="flex-shrink-0 w-full flex items-center justify-between z-30 px-3 py-2 gap-2">
+        {/* Left: table code + blind info */}
+        <div className="flex items-center gap-2 min-w-0">
+          <div className="flex items-center gap-1.5 px-2.5 py-1 bg-zinc-900/90 rounded-xl border border-zinc-800 text-xs font-mono flex-shrink-0">
             <span className="text-amber-400 font-bold">TABLE:</span>
             <span className="text-white font-bold tracking-wider">{roomState.code}</span>
           </div>
-          <div className="hidden sm:flex items-center gap-2 px-3 py-1 bg-zinc-900/90 rounded-xl border border-zinc-800 text-xs font-mono text-zinc-400">
-            <span>Hand #{gameState.handNumber}</span>
-            <span>•</span>
-            <span>Blinds {formatRupee(roomState.config.smallBlind)}/{formatRupee(roomState.config.bigBlind)}</span>
+          <div className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 bg-zinc-900/90 rounded-xl border border-zinc-800 text-xs font-mono text-zinc-400 min-w-0">
+            <span className="truncate">Hand #{gameState.handNumber} • {formatRupee(roomState.config.smallBlind)}/{formatRupee(roomState.config.bigBlind)}</span>
           </div>
         </div>
 
-        {/* Responsible Disclaimer Pill */}
-        <div className="hidden md:flex items-center gap-1.5 px-3 py-1 bg-zinc-900/60 rounded-full border border-zinc-800 text-[10px] text-zinc-400 font-mono">
-          <Shield className="w-3 h-3 text-amber-400 shrink-0" />
-          <span>{VIRTUAL_CURRENCY_DISCLAIMER}</span>
+        {/* Center: disclaimer (desktop only) */}
+        <div className="hidden lg:flex items-center gap-1.5 px-3 py-1 bg-zinc-900/60 rounded-full border border-zinc-800 text-[10px] text-zinc-400 font-mono max-w-xs truncate">
+          <Shield className="w-3 h-3 text-amber-400 flex-shrink-0" />
+          <span className="truncate">{VIRTUAL_CURRENCY_DISCLAIMER}</span>
         </div>
 
-        <div className="flex items-center gap-2">
-          {/* Sound Toggle */}
+        {/* Right: controls */}
+        <div className="flex items-center gap-1.5 flex-shrink-0">
           <button
             onClick={toggleSound}
             className="p-2 bg-zinc-900/90 hover:bg-zinc-800 text-zinc-300 rounded-xl border border-zinc-800 transition"
@@ -91,8 +96,6 @@ export const PokerTable: React.FC<PokerTableProps> = ({
           >
             {isMuted ? <VolumeX className="w-4 h-4 text-rose-400" /> : <Volume2 className="w-4 h-4 text-amber-400" />}
           </button>
-
-          {/* History */}
           <button
             onClick={() => setShowHistory(true)}
             className="p-2 bg-zinc-900/90 hover:bg-zinc-800 text-zinc-300 rounded-xl border border-zinc-800 transition"
@@ -100,8 +103,6 @@ export const PokerTable: React.FC<PokerTableProps> = ({
           >
             <History className="w-4 h-4 text-amber-400" />
           </button>
-
-          {/* Leave */}
           <button
             onClick={onLeaveRoom}
             className="p-2 bg-zinc-900/90 hover:bg-zinc-800 text-zinc-400 hover:text-rose-400 rounded-xl border border-zinc-800 transition"
@@ -112,40 +113,44 @@ export const PokerTable: React.FC<PokerTableProps> = ({
         </div>
       </div>
 
-      {/* Center Table Arena */}
-      <div className="relative w-full max-w-5xl flex-1 max-h-[72vh] my-auto flex items-center justify-center">
-        {/* Leather Rail Wrapper */}
-        <div className="relative w-full h-full max-w-4xl max-h-[530px] poker-table-outer-rail flex items-center justify-center">
-          {/* Woven Felt Surface with Racetrack */}
-          <div className="w-full h-full poker-felt-surface flex flex-col items-center justify-center p-4">
+      {/* ── POKER TABLE (fills remaining vertical space, leaves room for bottom bar) ── */}
+      <div className="flex-1 flex items-center justify-center px-2 py-1 min-h-0">
+        {/* Outer leather rail — aspect-ratio locks the oval shape */}
+        <div
+          className="poker-table-outer-rail w-full"
+          style={{
+            aspectRatio: '16 / 9',
+            maxWidth: 'min(100%, calc((100dvh - 200px) * 16 / 9))',
+            maxHeight: 'calc(100dvh - 200px)',
+          }}
+        >
+          {/* Woven felt surface */}
+          <div className="poker-felt-surface w-full h-full relative flex flex-col items-center justify-center">
             {/* Racetrack betting line */}
-            <div className="poker-betting-line"></div>
+            <div className="poker-betting-line" />
 
-            {/* Table Felt Center Emblem */}
-            <div className="absolute inset-0 flex items-center justify-center pointer-events-none opacity-5">
-              <span className="font-serif text-6xl sm:text-8xl text-amber-200 font-black tracking-widest">
+            {/* Watermark */}
+            <div className="absolute inset-0 flex items-center justify-center pointer-events-none opacity-[0.04]">
+              <span className="font-serif text-amber-200 font-black tracking-widest text-3xl sm:text-5xl md:text-7xl whitespace-nowrap">
                 ROYAL CLUB
               </span>
             </div>
 
-            {/* Pot Display */}
-            <div className="flex flex-col items-center z-20 mb-3">
-              <div className="flex items-center gap-2 bg-black/75 backdrop-blur-md px-4 py-1.5 rounded-full border border-amber-500/40 shadow-xl">
-                <span className="text-[11px] uppercase tracking-wider text-amber-400 font-mono font-bold">
-                  POT:
-                </span>
-                <span className="text-sm sm:text-base font-black text-amber-200 font-mono">
+            {/* Pot display */}
+            <div className="flex flex-col items-center z-20 mb-1 sm:mb-2">
+              <div className="flex items-center gap-1.5 bg-black/75 backdrop-blur-md px-3 py-1 rounded-full border border-amber-500/40 shadow-xl">
+                <span className="text-[10px] sm:text-[11px] uppercase tracking-wider text-amber-400 font-mono font-bold">POT:</span>
+                <span className="text-xs sm:text-sm font-black text-amber-200 font-mono">
                   {formatRupee(gameState.pot)}
                 </span>
               </div>
-
-              {/* Side Pots if any */}
+              {/* Side pots */}
               {gameState.sidePots && gameState.sidePots.length > 1 && (
-                <div className="flex items-center gap-2 mt-1">
+                <div className="flex items-center gap-1.5 mt-0.5 flex-wrap justify-center">
                   {gameState.sidePots.map((sp, idx) => (
                     <span
                       key={idx}
-                      className="text-[10px] font-mono px-2.5 py-0.5 rounded-full bg-black/80 border border-zinc-700 text-amber-300 shadow-sm"
+                      className="text-[9px] sm:text-[10px] font-mono px-2 py-0.5 rounded-full bg-black/80 border border-zinc-700 text-amber-300"
                     >
                       {idx === 0 ? 'MAIN' : `SIDE ${idx}`}: {formatRupee(sp.amount)}
                     </span>
@@ -159,16 +164,16 @@ export const PokerTable: React.FC<PokerTableProps> = ({
               <CommunityCards cards={gameState.communityCards} phase={gameState.phase} />
             </div>
 
-            {/* Street / Phase Badge */}
-            <div className="mt-3 px-3 py-0.5 bg-black/60 rounded-full border border-emerald-500/30 text-[10px] font-mono uppercase tracking-widest text-emerald-400">
+            {/* Phase badge */}
+            <div className="mt-1.5 px-2.5 py-0.5 bg-black/60 rounded-full border border-emerald-500/30 text-[9px] sm:text-[10px] font-mono uppercase tracking-widest text-emerald-400">
               {gameState.phase}
             </div>
 
-            {/* Render Seated Players around the table */}
+            {/* Player seats — absolutely positioned around the ellipse */}
             {gameState.players.map((player) => (
               <div
                 key={player.id}
-                style={getSeatPositionClass(player.seatIndex)}
+                style={getSeatPositionStyle(player.seatIndex)}
                 className="absolute z-20"
               >
                 <PlayerSeat
@@ -185,29 +190,31 @@ export const PokerTable: React.FC<PokerTableProps> = ({
         </div>
       </div>
 
-      {/* Bottom Area: Your Hole Cards & Action Bar */}
-      <div className="w-full max-w-2xl flex flex-col items-center gap-2 z-30 pb-2">
-        {/* Your Hole Cards */}
+      {/* ── BOTTOM: HOLE CARDS + ACTION BAR ── */}
+      <div className="flex-shrink-0 w-full flex flex-col items-center gap-2 z-30 px-2 pb-3 pt-1">
+        {/* Hole cards */}
         {me && me.holeCards && me.holeCards.length > 0 && !me.hasFolded && (
-          <div className="flex items-center gap-2.5 transform -translate-y-2 hover:-translate-y-3 transition-transform">
+          <div className="flex items-center gap-2 hover:-translate-y-1 transition-transform">
             {me.holeCards.map((c, idx) => (
               <CardView key={idx} card={c} size="lg" />
             ))}
           </div>
         )}
 
-        {/* Action Bar */}
-        <ActionBar
-          isMyTurn={isMyTurn}
-          legalActions={gameState.legalActions}
-          pot={gameState.pot}
-          currentBet={gameState.currentBet}
-          myChips={me?.chips ?? 0}
-          onAction={onAction}
-        />
+        {/* Action bar */}
+        <div className="w-full max-w-xl">
+          <ActionBar
+            isMyTurn={isMyTurn}
+            legalActions={gameState.legalActions}
+            pot={gameState.pot}
+            currentBet={gameState.currentBet}
+            myChips={me?.chips ?? 0}
+            onAction={onAction}
+          />
+        </div>
       </div>
 
-      {/* Showdown Banner on Hand Finish */}
+      {/* ── SHOWDOWN BANNER ── */}
       {gameState.lastHandResult && gameState.phase === 'HAND_COMPLETE' && (
         <ShowdownBanner
           result={gameState.lastHandResult}
@@ -216,7 +223,7 @@ export const PokerTable: React.FC<PokerTableProps> = ({
         />
       )}
 
-      {/* Hand History Modal */}
+      {/* ── HAND HISTORY MODAL ── */}
       {showHistory && (
         <HandHistoryModal
           roomCode={roomState.code}
