@@ -355,7 +355,7 @@ export const PokerTable: React.FC<PokerTableProps> = ({
             {/* ── Player's Hole Cards on the Felt (in front of seat) ── */}
             {me && me.holeCards && me.holeCards.length > 0 && !me.hasFolded && (
               <div
-                className="absolute z-20 flex items-center gap-2 pointer-events-auto"
+                className="absolute z-20 flex items-center -space-x-1 sm:space-x-1 pointer-events-auto"
                 style={{
                   left: '50%',
                   top: isMobilePortrait ? '72%' : '76%',
@@ -363,7 +363,14 @@ export const PokerTable: React.FC<PokerTableProps> = ({
                 }}
               >
                 {me.holeCards.map((c, idx) => (
-                  <CardView key={idx} card={c} size={isMobilePortrait ? 'md' : 'lg'} />
+                  <CardView
+                    key={idx}
+                    card={c}
+                    size={isMobilePortrait ? 'md' : 'lg'}
+                    dealDelayMs={idx * 140}
+                    isInteractive={true}
+                    tiltDeg={idx === 0 ? -3 : 3}
+                  />
                 ))}
               </div>
             )}
