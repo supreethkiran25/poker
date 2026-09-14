@@ -475,13 +475,18 @@ export function registerSocketHandlers(io: Server): void {
       }
 
       const started = room.startNextHand();
-      if (started) {
+      if (started.success) {
         broadcastRoomState(room);
         broadcastGameState(room);
         io.to(`room:${room.code}`).emit('table:alert', {
           id: crypto.randomUUID(),
           type: 'INFO',
           message: '♠ Host dealt the next hand!',
+        });
+      } else {
+        socket.emit('error:notification', {
+          code: 'CANNOT_START_NEXT_HAND',
+          message: started.reason || 'Cannot start next hand.',
         });
       }
     });

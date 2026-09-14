@@ -268,23 +268,26 @@ export class Room {
     if (activeWithChips.length >= 2) {
       const allReady = activeWithChips.every((p) => p && this.nextHandReadyPlayers.has(p.id));
       if (allReady && this.engine.getPhase() === 'HAND_COMPLETE') {
-        this.startNextHand();
-        return true;
+        const res = this.startNextHand();
+        return res.success;
       }
     }
     return false;
   }
 
-  public startNextHand(): boolean {
+  public startNextHand(): { success: boolean; reason?: string } {
     const activeWithChips = this.engine.getPlayers().filter((p) => p !== null && p.chips > 0);
     if (activeWithChips.length < 2) {
-      return false;
+      return {
+        success: false,
+        reason: 'At least 2 players must have chips. Players with 0 chips must rebuy.',
+      };
     }
 
     this.nextHandReadyPlayers.clear();
     this.engine.startHand();
     this.startTurnTimer();
-    return true;
+    return { success: true };
   }
 
   public getPublicState(): RoomPublicState {

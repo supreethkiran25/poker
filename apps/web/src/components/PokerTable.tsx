@@ -69,8 +69,15 @@ export const PokerTable: React.FC<PokerTableProps> = ({
   const [showRules, setShowRules] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [showRebuy, setShowRebuy] = useState(false);
+  const [showShowdown, setShowShowdown] = useState(true);
   const [secondsRemaining, setSecondsRemaining] = useState<number | null>(null);
   const [isMobilePortrait, setIsMobilePortrait] = useState(() => window.innerWidth < 640);
+
+  useEffect(() => {
+    if (gameState.phase === 'HAND_COMPLETE') {
+      setShowShowdown(true);
+    }
+  }, [gameState.phase, gameState.handNumber]);
 
   useEffect(() => {
     const handleResize = () => {
@@ -479,11 +486,19 @@ export const PokerTable: React.FC<PokerTableProps> = ({
       </footer>
 
       {/* ══ SHOWDOWN BANNER ══ */}
-      {gameState.lastHandResult && gameState.phase === 'HAND_COMPLETE' && (
+      {gameState.lastHandResult && gameState.phase === 'HAND_COMPLETE' && showShowdown && (
         <ShowdownBanner
           result={gameState.lastHandResult}
           players={gameState.players}
           myPlayerId={myPlayerId}
+          isHost={isHost}
+          isReadyForNext={amIReadyForNext}
+          readyPlayerCount={nextHandReadyList.length}
+          totalActivePlayerCount={gameState.players.filter((p) => p.chips > 0).length}
+          onReadyForNext={() => onReadyForNextHand && onReadyForNextHand(!amIReadyForNext)}
+          onDealNext={onDealNextHand}
+          onRebuy={() => setShowRebuy(true)}
+          onClose={() => setShowShowdown(false)}
         />
       )}
 
