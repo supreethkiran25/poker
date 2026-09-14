@@ -3,8 +3,8 @@ services:
     name: poker-app
     env: node
     plan: free
-    buildCommand: npm install && npm run build
-    startCommand: npm run start -w apps/server
+    buildCommand: npm install --include=dev && npm run build
+    startCommand: node apps/server/dist/server.js
     envVars:
       - key: PORT
         value: 10000
