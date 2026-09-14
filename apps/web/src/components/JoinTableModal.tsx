@@ -108,16 +108,18 @@ export const JoinTableModal: React.FC<JoinTableModalProps> = ({
           {tab === 'code' ? (
             <div>
               <label className="block text-[11px] font-bold uppercase text-zinc-400 mb-1">
-                Enter 6-character code
+                Enter 5-digit room code
               </label>
               <input
                 type="text"
+                inputMode="numeric"
+                pattern="[0-9]*"
                 required
-                maxLength={10}
-                placeholder="e.g. K7Q9XM"
+                maxLength={5}
+                placeholder="e.g. 58291"
                 value={code}
-                onChange={(e) => setCode(e.target.value.toUpperCase())}
-                className="w-full bg-zinc-900 border border-zinc-700 text-amber-300 font-mono font-bold text-center uppercase tracking-widest px-3.5 py-2.5 rounded-xl text-sm focus:outline-none focus:border-amber-400"
+                onChange={(e) => setCode(e.target.value.replace(/\D/g, '').slice(0, 5))}
+                className="w-full bg-zinc-900 border border-zinc-700 text-amber-300 font-mono font-bold text-center tracking-[0.25em] text-lg px-3.5 py-2.5 rounded-xl focus:outline-none focus:border-amber-400"
               />
             </div>
           ) : (

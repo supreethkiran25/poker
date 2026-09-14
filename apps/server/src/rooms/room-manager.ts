@@ -11,16 +11,9 @@ import {
 import { PokerEngine } from '@poker/poker-engine';
 import { recordHandHistory } from '../db/database.js';
 
-// Alphabet excluding ambiguous 0, O, 1, I, L
-const ROOM_CODE_ALPHABET = '23456789ABCDEFGHJKMNPQRSTUVWXYZ';
-
 export function generateRoomCode(): string {
-  let code = '';
-  for (let i = 0; i < 5; i++) {
-    const idx = crypto.randomInt(0, ROOM_CODE_ALPHABET.length);
-    code += ROOM_CODE_ALPHABET[idx];
-  }
-  return code;
+  // 5 random numbers e.g. "48201"
+  return crypto.randomInt(10000, 100000).toString();
 }
 
 export interface RoomPlayer {
@@ -342,6 +335,9 @@ export class RoomManager {
     config?: RoomConfig
   ): Room {
     const room = new Room(hostId, hostName, hostAvatar, config);
+    while (this.rooms.has(room.code)) {
+      room.code = generateRoomCode();
+    }
     this.rooms.set(room.code, room);
     this.roomsById.set(room.id, room);
     return room;

@@ -95,12 +95,12 @@ export const PokerTable: React.FC<PokerTableProps> = ({
   const nextHandReadyList = roomState.nextHandReadyPlayerIds || [];
   const amIReadyForNext = nextHandReadyList.includes(myPlayerId);
 
-  // Auto prompt rebuy if player has 0 chips
+  // Auto prompt rebuy if player has 0 chips during active play (not during HAND_COMPLETE where ShowdownBanner has native rebuy)
   useEffect(() => {
-    if (me && me.chips === 0) {
+    if (me && me.chips === 0 && gameState.phase !== 'HAND_COMPLETE') {
       setShowRebuy(true);
     }
-  }, [me?.chips]);
+  }, [me?.chips, gameState.phase]);
 
   // Turn timer countdown
   useEffect(() => {

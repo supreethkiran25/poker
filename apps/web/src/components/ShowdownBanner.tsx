@@ -49,8 +49,8 @@ export const ShowdownBanner: React.FC<ShowdownBannerProps> = ({
   }, [isMeWinner]);
 
   return (
-    <div className="absolute inset-0 z-40 flex items-center justify-center bg-black/65 backdrop-blur-sm p-4 animate-fade-in">
-      <div className="bg-gradient-to-b from-zinc-900 to-zinc-950 border-2 border-amber-400/80 rounded-3xl p-6 shadow-2xl max-w-lg w-full flex flex-col items-center text-center relative max-h-[90vh] overflow-y-auto">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md p-3 sm:p-4 animate-fade-in overflow-y-auto">
+      <div className="bg-gradient-to-b from-zinc-900 to-zinc-950 border-2 border-amber-400/80 rounded-3xl p-4 sm:p-6 shadow-2xl max-w-md w-full flex flex-col items-center text-center relative my-auto max-h-[92dvh] overflow-y-auto">
         {/* Close / View Table Button */}
         {onClose && (
           <button
