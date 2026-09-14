@@ -16,7 +16,8 @@ export const HandHistoryModal: React.FC<HandHistoryModalProps> = ({
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetch(`/api/rooms/${roomCode}/history`)
+    const serverUrl = import.meta.env.VITE_SERVER_URL || '';
+    fetch(`${serverUrl}/api/rooms/${roomCode}/history`)
       .then((res) => res.json())
       .then((data) => {
         setHistory(data.history || []);

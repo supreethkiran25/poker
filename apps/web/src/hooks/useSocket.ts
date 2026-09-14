@@ -32,7 +32,8 @@ export function useSocket() {
   const prevIsTurnRef = useRef(false);
 
   useEffect(() => {
-    const socket = io({
+    const serverUrl = import.meta.env.VITE_SERVER_URL || window.location.origin;
+    const socket = io(serverUrl, {
       transports: ['websocket', 'polling'],
       reconnectionAttempts: 15,
       reconnectionDelay: 1000,
