@@ -1,22 +1,27 @@
 import React, { useState } from 'react';
-import { X, Volume2, Mic, Sparkles, MessageSquare, Shield, Check } from 'lucide-react';
+import { X, Volume2, Sparkles, MessageSquare, Clock, Users, Eye, Check } from 'lucide-react';
 import { soundManager } from '../audio/sound-manager.js';
 
 interface TableSettingsModalProps {
-  isVoiceActive: boolean;
-  isMuted: boolean;
-  onToggleMute: () => void;
+  isVoiceActive?: boolean;
+  isMuted?: boolean;
+  onToggleMute?: () => void;
   onClose: () => void;
 }
 
 export const TableSettingsModal: React.FC<TableSettingsModalProps> = ({
-  isVoiceActive,
-  isMuted,
+  isVoiceActive = false,
+  isMuted = false,
   onToggleMute,
   onClose,
 }) => {
   const [soundEnabled, setSoundEnabled] = useState(!soundManager.getMuted());
   const [animations, setAnimations] = useState(true);
+  const [reducedMotion, setReducedMotion] = useState(false);
+  const [turnTimer, setTurnTimer] = useState<number>(30);
+  const [chatEnabled, setChatEnabled] = useState(true);
+  const [reactionsEnabled, setReactionsEnabled] = useState(true);
+  const [spectatorsEnabled, setSpectatorsEnabled] = useState(false);
   const [autoNextHand, setAutoNextHand] = useState(true);
 
   const toggleSound = () => {
@@ -26,18 +31,41 @@ export const TableSettingsModal: React.FC<TableSettingsModalProps> = ({
     if (!next && !soundManager.getMuted()) soundManager.toggleMute();
   };
 
+  const ToggleSwitch = ({
+    checked,
+    onChange,
+  }: {
+    checked: boolean;
+    onChange: () => void;
+  }) => (
+    <button
+      type="button"
+      onClick={onChange}
+      className={`w-12 h-6 flex items-center rounded-full p-1 transition-colors duration-200 ${
+        checked ? 'bg-emerald-500' : 'bg-zinc-800'
+      }`}
+    >
+      <div
+        className={`bg-white w-4 h-4 rounded-full shadow-md transform transition-transform duration-200 flex items-center justify-center text-[9px] font-bold ${
+          checked ? 'translate-x-6 text-emerald-600' : 'translate-x-0 text-zinc-500'
+        }`}
+      >
+        {checked ? 'On' : 'Off'}
+      </div>
+    </button>
+  );
+
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md p-4 animate-fade-in overflow-y-auto">
-      <div className="bg-zinc-950 border border-zinc-800 rounded-3xl p-5 sm:p-7 max-w-md w-full shadow-2xl relative my-auto">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 backdrop-blur-md p-4 animate-fade-in overflow-y-auto">
+      <div className="bg-zinc-950 border border-zinc-800 rounded-3xl p-6 sm:p-8 max-w-md w-full shadow-2xl relative my-auto flex flex-col gap-5 max-h-[90vh]">
         {/* Header */}
-        <div className="flex items-center justify-between pb-3 border-b border-zinc-800">
-          <div className="flex items-center gap-2">
+        <div className="flex items-center justify-between pb-3 border-b border-zinc-800/80 flex-shrink-0">
+          <div className="flex items-center gap-2.5">
             <div className="w-8 h-8 rounded-xl bg-amber-500/20 text-amber-400 flex items-center justify-center font-bold text-sm">
               ⚙️
             </div>
             <div>
               <h2 className="text-lg font-bold text-white tracking-tight">Table Settings</h2>
-              <div className="text-[11px] text-zinc-400 font-mono">Preferences & Audio</div>
             </div>
           </div>
           <button
@@ -48,108 +76,92 @@ export const TableSettingsModal: React.FC<TableSettingsModalProps> = ({
           </button>
         </div>
 
-        {/* Toggles */}
-        <div className="py-4 space-y-3.5">
-          {/* Sound */}
-          <div className="flex items-center justify-between p-3 rounded-2xl bg-zinc-900/60 border border-zinc-800">
-            <div className="flex items-center gap-3">
-              <Volume2 className="w-4 h-4 text-amber-400" />
-              <div>
-                <div className="text-xs font-bold text-zinc-100">Sound Effects</div>
-                <div className="text-[10px] text-zinc-500">Chips, card deals, turn alerts</div>
+        {/* Settings Body */}
+        <div className="flex-1 overflow-y-auto space-y-6 pr-1">
+          {/* Section 1: Table Settings */}
+          <div>
+            <h3 className="text-xs font-bold uppercase tracking-wider text-zinc-400 mb-3 px-1">
+              Table Settings
+            </h3>
+            <div className="space-y-2.5">
+              <div className="flex items-center justify-between p-3 rounded-2xl bg-zinc-900/60 border border-zinc-800/80">
+                <span className="text-xs font-bold text-zinc-200">Sound</span>
+                <ToggleSwitch checked={soundEnabled} onChange={toggleSound} />
+              </div>
+
+              <div className="flex items-center justify-between p-3 rounded-2xl bg-zinc-900/60 border border-zinc-800/80">
+                <span className="text-xs font-bold text-zinc-200">Animations</span>
+                <ToggleSwitch checked={animations} onChange={() => setAnimations(!animations)} />
+              </div>
+
+              <div className="flex items-center justify-between p-3 rounded-2xl bg-zinc-900/60 border border-zinc-800/80">
+                <span className="text-xs font-bold text-zinc-200">Reduced Motion</span>
+                <ToggleSwitch
+                  checked={reducedMotion}
+                  onChange={() => setReducedMotion(!reducedMotion)}
+                />
               </div>
             </div>
-            <button
-              onClick={toggleSound}
-              className={`w-11 h-6 flex items-center rounded-full p-1 transition-colors ${
-                soundEnabled ? 'bg-amber-500' : 'bg-zinc-800'
-              }`}
-            >
-              <div
-                className={`bg-zinc-950 w-4 h-4 rounded-full shadow-md transform transition-transform ${
-                  soundEnabled ? 'translate-x-5' : 'translate-x-0'
-                }`}
-              />
-            </button>
           </div>
 
-          {/* Voice / Mic */}
-          <div className="flex items-center justify-between p-3 rounded-2xl bg-zinc-900/60 border border-zinc-800">
-            <div className="flex items-center gap-3">
-              <Mic className="w-4 h-4 text-emerald-400" />
-              <div>
-                <div className="text-xs font-bold text-zinc-100">Voice Microphone</div>
-                <div className="text-[10px] text-zinc-500">
-                  {isVoiceActive ? (isMuted ? 'Muted' : 'Live transmitting') : 'Tap to connect'}
-                </div>
+          {/* Section 2: Game Settings */}
+          <div>
+            <h3 className="text-xs font-bold uppercase tracking-wider text-zinc-400 mb-3 px-1">
+              Game Settings
+            </h3>
+            <div className="space-y-2.5">
+              {/* Turn Timer Dropdown */}
+              <div className="flex items-center justify-between p-3 rounded-2xl bg-zinc-900/60 border border-zinc-800/80">
+                <span className="text-xs font-bold text-zinc-200">Turn Timer</span>
+                <select
+                  value={turnTimer}
+                  onChange={(e) => setTurnTimer(Number(e.target.value))}
+                  className="bg-zinc-950 border border-zinc-700 text-amber-300 font-mono text-xs font-bold rounded-xl px-3 py-1.5 focus:outline-none focus:border-amber-400 cursor-pointer"
+                >
+                  <option value={15}>15 seconds</option>
+                  <option value={30}>30 seconds</option>
+                  <option value={45}>45 seconds</option>
+                  <option value={60}>60 seconds</option>
+                </select>
               </div>
-            </div>
-            <button
-              onClick={onToggleMute}
-              className={`w-11 h-6 flex items-center rounded-full p-1 transition-colors ${
-                isVoiceActive && !isMuted ? 'bg-emerald-500' : 'bg-zinc-800'
-              }`}
-            >
-              <div
-                className={`bg-zinc-950 w-4 h-4 rounded-full shadow-md transform transition-transform ${
-                  isVoiceActive && !isMuted ? 'translate-x-5' : 'translate-x-0'
-                }`}
-              />
-            </button>
-          </div>
 
-          {/* Animations */}
-          <div className="flex items-center justify-between p-3 rounded-2xl bg-zinc-900/60 border border-zinc-800">
-            <div className="flex items-center gap-3">
-              <Sparkles className="w-4 h-4 text-amber-400" />
-              <div>
-                <div className="text-xs font-bold text-zinc-100">Card Animations</div>
-                <div className="text-[10px] text-zinc-500">Smooth dealing and chip flips</div>
+              <div className="flex items-center justify-between p-3 rounded-2xl bg-zinc-900/60 border border-zinc-800/80">
+                <span className="text-xs font-bold text-zinc-200">Chat</span>
+                <ToggleSwitch checked={chatEnabled} onChange={() => setChatEnabled(!chatEnabled)} />
               </div>
-            </div>
-            <button
-              onClick={() => setAnimations(!animations)}
-              className={`w-11 h-6 flex items-center rounded-full p-1 transition-colors ${
-                animations ? 'bg-amber-500' : 'bg-zinc-800'
-              }`}
-            >
-              <div
-                className={`bg-zinc-950 w-4 h-4 rounded-full shadow-md transform transition-transform ${
-                  animations ? 'translate-x-5' : 'translate-x-0'
-                }`}
-              />
-            </button>
-          </div>
 
-          {/* Auto Next Hand */}
-          <div className="flex items-center justify-between p-3 rounded-2xl bg-zinc-900/60 border border-zinc-800">
-            <div className="flex items-center gap-3">
-              <Check className="w-4 h-4 text-amber-400" />
-              <div>
-                <div className="text-xs font-bold text-zinc-100">Auto-start Next Hand</div>
-                <div className="text-[10px] text-zinc-500">Continuous dealing between hands</div>
+              <div className="flex items-center justify-between p-3 rounded-2xl bg-zinc-900/60 border border-zinc-800/80">
+                <span className="text-xs font-bold text-zinc-200">Reactions</span>
+                <ToggleSwitch
+                  checked={reactionsEnabled}
+                  onChange={() => setReactionsEnabled(!reactionsEnabled)}
+                />
+              </div>
+
+              <div className="flex items-center justify-between p-3 rounded-2xl bg-zinc-900/60 border border-zinc-800/80">
+                <span className="text-xs font-bold text-zinc-200">Spectators</span>
+                <ToggleSwitch
+                  checked={spectatorsEnabled}
+                  onChange={() => setSpectatorsEnabled(!spectatorsEnabled)}
+                />
+              </div>
+
+              <div className="flex items-center justify-between p-3 rounded-2xl bg-zinc-900/60 border border-zinc-800/80">
+                <span className="text-xs font-bold text-zinc-200">Auto-start Next Hand</span>
+                <ToggleSwitch
+                  checked={autoNextHand}
+                  onChange={() => setAutoNextHand(!autoNextHand)}
+                />
               </div>
             </div>
-            <button
-              onClick={() => setAutoNextHand(!autoNextHand)}
-              className={`w-11 h-6 flex items-center rounded-full p-1 transition-colors ${
-                autoNextHand ? 'bg-amber-500' : 'bg-zinc-800'
-              }`}
-            >
-              <div
-                className={`bg-zinc-950 w-4 h-4 rounded-full shadow-md transform transition-transform ${
-                  autoNextHand ? 'translate-x-5' : 'translate-x-0'
-                }`}
-              />
-            </button>
           </div>
         </div>
 
-        {/* Save Button */}
-        <div className="pt-3 border-t border-zinc-800">
+        {/* Footer: Solid Gold Save Changes Button matching Screen 9 */}
+        <div className="pt-3 border-t border-zinc-800/80 flex-shrink-0">
           <button
             onClick={onClose}
-            className="w-full py-2.5 bg-gradient-to-r from-amber-500 to-yellow-500 hover:from-amber-400 hover:to-yellow-400 text-zinc-950 font-black text-xs uppercase tracking-wider rounded-xl transition active:scale-95 shadow-lg"
+            className="w-full py-3.5 bg-gradient-to-r from-amber-500 via-amber-400 to-yellow-500 hover:from-amber-400 hover:to-yellow-400 text-zinc-950 font-black text-xs uppercase tracking-wider rounded-2xl shadow-xl transition active:scale-95 flex items-center justify-center"
           >
             Save Changes
           </button>

@@ -47,13 +47,19 @@ export const LandingPage: React.FC<LandingPageProps> = ({
           </span>
         </div>
 
-        {/* Center Nav Links */}
+        {/* Center Nav Links matching Screen 1 */}
         <nav className="hidden md:flex items-center gap-8 text-xs font-medium text-zinc-400">
           <button
             onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
-            className="hover:text-amber-300 transition"
+            className="text-white font-bold hover:text-amber-300 transition"
           >
             Home
+          </button>
+          <button
+            onClick={() => setShowFaq(true)}
+            className="hover:text-amber-300 transition"
+          >
+            How It Works
           </button>
           <button
             onClick={() => setShowRules(true)}
@@ -65,17 +71,17 @@ export const LandingPage: React.FC<LandingPageProps> = ({
             onClick={() => setShowFaq(true)}
             className="hover:text-amber-300 transition"
           >
-            How It Works & FAQs
+            FAQs
           </button>
         </nav>
 
-        {/* Header CTA Button */}
+        {/* Header Right: Screen 1 Login Button & Join Table */}
         <div className="flex items-center gap-2.5">
           <button
             onClick={onOpenJoin}
-            className="px-4 py-2 bg-zinc-900/80 hover:bg-zinc-800 text-zinc-300 font-bold text-xs uppercase tracking-wider rounded-xl border border-zinc-800 backdrop-blur-sm transition active:scale-95"
+            className="px-4 py-1.5 bg-zinc-900/90 hover:bg-zinc-800 text-zinc-300 hover:text-white font-bold text-xs rounded-xl border border-zinc-800 transition"
           >
-            Join Table
+            Login
           </button>
         </div>
       </header>
@@ -128,7 +134,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
               </div>
               <div>
                 <div className="text-xs font-bold text-zinc-200">Private Rooms</div>
-                <div className="text-[10px] text-zinc-500">Invite-only private tables</div>
+                <div className="text-[10px] text-zinc-500">Invite-only tables</div>
               </div>
             </div>
 
@@ -138,7 +144,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
               </div>
               <div>
                 <div className="text-xs font-bold text-zinc-200">Real-time Play</div>
-                <div className="text-[10px] text-zinc-500">Live WebRTC voice & smooth sync</div>
+                <div className="text-[10px] text-zinc-500">Smooth & secure</div>
               </div>
             </div>
 
@@ -148,7 +154,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
               </div>
               <div>
                 <div className="text-xs font-bold text-zinc-200">Virtual ₹ Chips</div>
-                <div className="text-[10px] text-zinc-500">No real money, purely for fun</div>
+                <div className="text-[10px] text-zinc-500">No real money</div>
               </div>
             </div>
           </div>

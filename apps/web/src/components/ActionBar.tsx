@@ -168,50 +168,52 @@ export const ActionBar: React.FC<ActionBarProps> = ({
         </div>
       )}
 
-      {/* ── Main 4 Action Buttons Row (Fold, Check, Call, Raise) ── */}
-      <div className="flex items-stretch gap-1.5 sm:gap-2 w-full">
-        {/* Fold */}
+      {/* ── Main 4 Action Buttons Row matching Screen 5 (Fold, Check, Call, Raise) ── */}
+      <div className="flex items-stretch gap-2 w-full">
+        {/* Fold - Screen 5 Dark Charcoal Button */}
         {canFold && (
           <button
             onClick={() => onAction('fold')}
-            className="flex-1 py-2.5 sm:py-3 bg-zinc-900 hover:bg-rose-950/60 text-zinc-300 hover:text-rose-300 font-bold rounded-xl border border-zinc-800 hover:border-rose-500/40 transition active:scale-95 text-xs uppercase tracking-wide flex items-center justify-center"
+            className="flex-1 min-h-[48px] py-2.5 sm:py-3 bg-[#141822] hover:bg-[#1a202c] text-zinc-300 hover:text-white font-bold rounded-2xl border border-zinc-800 hover:border-zinc-700 transition active:scale-95 text-xs sm:text-sm tracking-wide flex items-center justify-center shadow-lg"
           >
             Fold
           </button>
         )}
 
-        {/* Check */}
+        {/* Check - Screen 5 Deep Emerald Green Button */}
         {canCheck && (
           <button
             onClick={() => onAction('check')}
-            className="flex-1 py-2.5 sm:py-3 bg-emerald-900/60 hover:bg-emerald-800/80 text-emerald-100 font-bold rounded-xl border border-emerald-500/50 transition active:scale-95 text-xs uppercase tracking-wide flex items-center justify-center shadow-lg"
+            className="flex-1 min-h-[48px] py-2.5 sm:py-3 bg-[#064e3b] hover:bg-[#047857] text-emerald-100 font-bold rounded-2xl border border-emerald-500/50 transition active:scale-95 text-xs sm:text-sm tracking-wide flex items-center justify-center shadow-lg"
           >
             Check
           </button>
         )}
 
-        {/* Call */}
+        {/* Call - Screen 5 Royal Poker Blue Button */}
         {callAction && (
           <button
             onClick={() => onAction('call')}
-            className="flex-1 py-2.5 sm:py-3 bg-blue-900/70 hover:bg-blue-800/90 text-blue-100 font-bold rounded-xl border border-blue-500/50 transition active:scale-95 text-xs uppercase tracking-wide flex flex-col items-center justify-center leading-tight shadow-lg"
+            className="flex-1 min-h-[48px] py-2.5 sm:py-3 bg-[#1e40af] hover:bg-[#1d4ed8] text-blue-100 font-bold rounded-2xl border border-blue-500/50 transition active:scale-95 text-xs sm:text-sm tracking-wide flex items-center justify-center gap-1.5 shadow-lg"
           >
             <span>Call</span>
-            <span className="text-[10px] font-mono text-blue-300">
+            <span className="font-mono text-blue-200 font-bold">
               {formatRupee(callAction.minAmount ?? 0)}
             </span>
           </button>
         )}
 
-        {/* Raise / Bet */}
+        {/* Raise / Bet - Screen 5 Solid Gold Button */}
         {raiseAction && (
           <div className="flex-1 flex gap-1">
             <button
               onClick={() => onAction(raiseAction.type, raiseAmount)}
-              className="flex-1 py-2.5 sm:py-3 bg-gradient-to-r from-amber-500 to-yellow-500 hover:from-amber-400 hover:to-yellow-400 text-zinc-950 font-black rounded-xl border border-yellow-300 transition active:scale-95 text-xs uppercase tracking-wide flex flex-col items-center justify-center leading-tight shadow-lg"
+              className="flex-1 min-h-[48px] py-2 sm:py-2.5 bg-gradient-to-r from-amber-500 via-amber-400 to-yellow-500 hover:from-amber-400 hover:to-yellow-400 text-zinc-950 font-black rounded-2xl border border-yellow-300 transition active:scale-95 text-xs uppercase tracking-wide flex flex-col items-center justify-center leading-tight shadow-xl"
             >
-              <span>{raiseAction.type === 'bet' ? 'Bet' : 'Raise'}</span>
-              <span className="text-[10px] font-mono font-bold text-zinc-900">
+              <span className="text-[10px] sm:text-xs">
+                {raiseAction.type === 'bet' ? 'Bet' : 'Raise To'}
+              </span>
+              <span className="text-xs sm:text-sm font-mono font-black text-zinc-950">
                 {formatRupee(raiseAmount)}
               </span>
             </button>
@@ -219,7 +221,7 @@ export const ActionBar: React.FC<ActionBarProps> = ({
             {/* Toggle Raise Slider */}
             <button
               onClick={() => setShowRaiseSlider(!showRaiseSlider)}
-              className="px-2 bg-zinc-900 hover:bg-zinc-800 text-amber-400 rounded-xl border border-zinc-700 transition flex items-center justify-center"
+              className="px-2.5 bg-zinc-900 hover:bg-zinc-800 text-amber-400 rounded-2xl border border-zinc-700 transition flex items-center justify-center"
               title="Adjust Bet Size"
             >
               {showRaiseSlider ? <ChevronDown className="w-4 h-4" /> : <ChevronUp className="w-4 h-4" />}
@@ -231,7 +233,7 @@ export const ActionBar: React.FC<ActionBarProps> = ({
         {!raiseAction && canAllIn && (
           <button
             onClick={() => onAction('all-in')}
-            className="flex-1 py-2.5 sm:py-3 bg-gradient-to-r from-rose-600 to-amber-600 text-white font-black rounded-xl border border-amber-400 transition active:scale-95 text-xs uppercase tracking-wide"
+            className="flex-1 min-h-[48px] py-2.5 sm:py-3 bg-gradient-to-r from-rose-600 to-amber-600 text-white font-black rounded-2xl border border-amber-400 transition active:scale-95 text-xs sm:text-sm uppercase tracking-wide shadow-xl"
           >
             All-In ({formatRupee(myChips)})
           </button>

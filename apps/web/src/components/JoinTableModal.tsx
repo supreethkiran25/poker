@@ -59,14 +59,14 @@ export const JoinTableModal: React.FC<JoinTableModalProps> = ({
           </div>
         </div>
 
-        {/* Tabs: Room Code / Invite Link */}
+        {/* Tabs matching Screen 3: Room Code / Invite Link */}
         <div className="flex bg-zinc-900/80 p-1 rounded-xl border border-zinc-800 my-4">
           <button
             type="button"
             onClick={() => setTab('code')}
-            className={`flex-1 py-1.5 rounded-lg text-xs font-bold transition flex items-center justify-center gap-1.5 ${
+            className={`flex-1 py-2 rounded-lg text-xs font-bold transition flex items-center justify-center gap-1.5 ${
               tab === 'code'
-                ? 'bg-amber-500 text-zinc-950 shadow'
+                ? 'bg-emerald-950 text-emerald-300 border border-emerald-500/50 shadow'
                 : 'text-zinc-400 hover:text-white'
             }`}
           >
@@ -76,9 +76,9 @@ export const JoinTableModal: React.FC<JoinTableModalProps> = ({
           <button
             type="button"
             onClick={() => setTab('link')}
-            className={`flex-1 py-1.5 rounded-lg text-xs font-bold transition flex items-center justify-center gap-1.5 ${
+            className={`flex-1 py-2 rounded-lg text-xs font-bold transition flex items-center justify-center gap-1.5 ${
               tab === 'link'
-                ? 'bg-amber-500 text-zinc-950 shadow'
+                ? 'bg-emerald-950 text-emerald-300 border border-emerald-500/50 shadow'
                 : 'text-zinc-400 hover:text-white'
             }`}
           >
@@ -130,7 +130,7 @@ export const JoinTableModal: React.FC<JoinTableModalProps> = ({
               <input
                 type="url"
                 required
-                placeholder="https://.../room/K7Q9XM"
+                placeholder="https://.../room/58291"
                 value={linkInput}
                 onChange={(e) => setLinkInput(e.target.value)}
                 className="w-full bg-zinc-900 border border-zinc-700 text-white px-3.5 py-2.5 rounded-xl text-xs font-mono focus:outline-none focus:border-amber-400"
@@ -138,39 +138,50 @@ export const JoinTableModal: React.FC<JoinTableModalProps> = ({
             </div>
           )}
 
-          {/* Submit button */}
+          {/* Submit button - Solid Gold */}
           <button
             type="submit"
             disabled={!name.trim() || (tab === 'code' ? !code.trim() : !linkInput.trim())}
-            className="w-full py-3 bg-gradient-to-r from-amber-500 via-amber-400 to-yellow-500 hover:from-amber-400 hover:to-yellow-400 disabled:opacity-40 disabled:cursor-not-allowed text-zinc-950 font-black text-xs uppercase tracking-wider rounded-xl shadow-lg transition active:scale-95 flex items-center justify-center gap-1.5"
+            className="w-full py-3.5 bg-gradient-to-r from-amber-500 via-amber-400 to-yellow-500 hover:from-amber-400 hover:to-yellow-400 disabled:opacity-40 disabled:cursor-not-allowed text-zinc-950 font-black text-xs uppercase tracking-wider rounded-2xl shadow-xl transition active:scale-95 flex items-center justify-center gap-1.5"
           >
-            Join Table
+            <span>Join Table</span>
             <ArrowRight className="w-4 h-4" />
           </button>
         </form>
 
-        {/* QR Code trigger */}
-        <div className="mt-4 pt-4 border-t border-zinc-800 text-center">
-          <button
-            type="button"
-            onClick={() => setShowQR(!showQR)}
-            className="inline-flex items-center gap-2 text-zinc-400 hover:text-amber-300 text-xs font-medium transition"
-          >
-            <QrCode className="w-4 h-4 text-amber-400" />
-            <span>Scan QR Code</span>
-          </button>
-
-          {showQR && (
-            <div className="mt-3 p-4 bg-zinc-900 rounded-2xl border border-zinc-800 text-center">
-              <div className="w-32 h-32 mx-auto bg-white rounded-xl p-2 flex items-center justify-center">
-                <QrCode className="w-24 h-24 text-zinc-950" />
-              </div>
-              <p className="text-[10px] text-zinc-500 mt-2">
-                Open camera on another phone to join via room link.
-              </p>
-            </div>
-          )}
+        {/* Screen 3 "Or" divider */}
+        <div className="relative my-4 flex items-center justify-center">
+          <div className="border-t border-zinc-800/80 w-full" />
+          <span className="absolute bg-zinc-950 px-3 text-[11px] text-zinc-500 font-mono uppercase">
+            Or
+          </span>
         </div>
+
+        {/* Screen 3 QR Code Box */}
+        <button
+          type="button"
+          onClick={() => setShowQR(!showQR)}
+          className="w-full p-3 rounded-2xl bg-zinc-900/60 hover:bg-zinc-900 border border-zinc-800/80 flex items-center gap-3 transition text-left"
+        >
+          <div className="w-10 h-10 rounded-xl bg-zinc-800 flex items-center justify-center text-amber-400 shrink-0">
+            <QrCode className="w-5 h-5" />
+          </div>
+          <div className="min-w-0">
+            <div className="text-xs font-bold text-zinc-200">Scan QR Code</div>
+            <div className="text-[11px] text-zinc-500">Scan the invite QR code</div>
+          </div>
+        </button>
+
+        {showQR && (
+          <div className="p-4 bg-zinc-900 rounded-2xl border border-zinc-800 text-center animate-fade-in">
+            <div className="w-32 h-32 mx-auto bg-white rounded-xl p-2 flex items-center justify-center">
+              <QrCode className="w-24 h-24 text-zinc-950" />
+            </div>
+            <p className="text-[10px] text-zinc-500 mt-2">
+              Scan with camera to open room on mobile.
+            </p>
+          </div>
+        )}
       </div>
     </div>
   );

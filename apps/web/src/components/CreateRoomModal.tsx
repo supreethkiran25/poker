@@ -145,34 +145,41 @@ export const CreateRoomModal: React.FC<CreateRoomModalProps> = ({
 
         {/* Wizard Main Container: Step indicator + Step Content */}
         <div className="flex-1 flex flex-col md:flex-row gap-6 overflow-y-auto py-2 min-h-0">
-          {/* Step indicator (sidebar on md, horizontal on mobile) */}
-          <div className="flex md:flex-col gap-1.5 overflow-x-auto pb-1 md:pb-0 md:w-48 flex-shrink-0">
-            {STEPS.map((s) => (
+          {/* Step indicator (sidebar on md, horizontal on mobile) matching Screen 2 */}
+          <div className="flex md:flex-col gap-2 overflow-x-auto pb-1 md:pb-0 md:w-52 flex-shrink-0">
+            {[
+              { id: 1, label: 'Game', val: "Texas Hold'em" },
+              { id: 2, label: 'Players', val: `${maxPlayers} Players` },
+              { id: 3, label: 'Starting Stack', val: formatRupee(startingChips) },
+              { id: 4, label: 'Blinds', val: `${formatRupee(smallBlind)} / ${formatRupee(bigBlind)}` },
+              { id: 5, label: 'Timer', val: `${turnTimerSeconds} seconds` },
+              { id: 6, label: 'Table Options', val: 'Chat, Reactions, Spectators' },
+            ].map((s) => (
               <button
                 key={s.id}
                 onClick={() => setCurrentStep(s.id)}
-                className={`flex items-center gap-2.5 px-3 py-2 rounded-xl text-left transition whitespace-nowrap md:whitespace-normal ${
+                className={`flex items-center gap-3 px-3.5 py-2.5 rounded-2xl text-left transition whitespace-nowrap md:whitespace-normal border ${
                   currentStep === s.id
-                    ? 'bg-amber-500/15 border border-amber-500/40 text-amber-300'
+                    ? 'bg-emerald-950/70 border-emerald-500/60 text-emerald-300 shadow'
                     : currentStep > s.id
-                    ? 'text-zinc-300 hover:bg-zinc-900'
-                    : 'text-zinc-600 hover:bg-zinc-900'
+                    ? 'bg-zinc-900/40 border-zinc-800 text-zinc-300 hover:bg-zinc-900'
+                    : 'bg-transparent border-transparent text-zinc-600 hover:bg-zinc-900/50'
                 }`}
               >
                 <div
-                  className={`w-5 h-5 rounded-full flex items-center justify-center font-mono text-[10px] font-bold shrink-0 ${
+                  className={`w-6 h-6 rounded-full flex items-center justify-center font-mono text-xs font-bold shrink-0 transition ${
                     currentStep === s.id
-                      ? 'bg-amber-500 text-zinc-950'
+                      ? 'bg-emerald-500 text-zinc-950 ring-2 ring-emerald-400/40'
                       : currentStep > s.id
-                      ? 'bg-zinc-700 text-zinc-300'
-                      : 'bg-zinc-800 text-zinc-500'
+                      ? 'bg-zinc-800 text-emerald-400 border border-emerald-500/40'
+                      : 'bg-zinc-900 text-zinc-600 border border-zinc-800'
                   }`}
                 >
                   {currentStep > s.id ? '✓' : s.id}
                 </div>
                 <div className="min-w-0">
-                  <div className="text-xs font-bold leading-tight truncate">{s.label}</div>
-                  <div className="text-[10px] text-zinc-500 hidden md:block truncate">{s.sub}</div>
+                  <div className="text-xs font-bold leading-tight truncate text-zinc-200">{s.label}</div>
+                  <div className="text-[11px] font-mono text-zinc-400 truncate">{s.val}</div>
                 </div>
               </button>
             ))}

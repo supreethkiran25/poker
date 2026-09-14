@@ -15,6 +15,7 @@ import { RulesModal } from './RulesModal.js';
 import { TableSettingsModal } from './TableSettingsModal.js';
 import { TableAlertBanner } from './TableAlertBanner.js';
 import { RebuyModal } from './RebuyModal.js';
+import { GameSummaryModal } from './GameSummaryModal.js';
 import type { TableAlert } from '../hooks/useSocket.js';
 import {
   Mic,
@@ -28,6 +29,8 @@ import {
   Coins,
   Check,
   Play,
+  ChevronLeft,
+  Trophy,
 } from 'lucide-react';
 
 interface PokerTableProps {
@@ -65,6 +68,7 @@ export const PokerTable: React.FC<PokerTableProps> = ({
   onDealNextHand,
   unreadChatCount = 0,
 }) => {
+  const [showSummary, setShowSummary] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
   const [showRules, setShowRules] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
@@ -164,23 +168,30 @@ export const PokerTable: React.FC<PokerTableProps> = ({
       {/* ── Table Alert Banner (Leave, Disconnect, Rebuy alerts) ── */}
       <TableAlertBanner alerts={tableAlerts} />
 
-      {/* ══ TOP NAVIGATION & STATUS BAR (Screen 6 Reference) ══ */}
+      {/* ══ TOP NAVIGATION & STATUS BAR (Screen 5 & 6 Reference) ══ */}
       <header className="flex-shrink-0 flex items-center justify-between px-3 py-2 border-b border-zinc-800/80 bg-zinc-950/80 backdrop-blur-md z-30 min-h-[48px]">
-        {/* Left: Table code & hand info */}
+        {/* Left: Screen 5 Breadcrumb `< Hand #124578` + Table code */}
         <div className="flex items-center gap-2 min-w-0">
-          <div className="flex items-center gap-1.5 px-2.5 py-1 bg-zinc-900 rounded-xl border border-zinc-800 text-[11px] font-mono flex-shrink-0">
+          <button
+            onClick={onLeaveRoom}
+            className="flex items-center gap-1 text-xs font-mono font-bold text-zinc-300 hover:text-white transition p-1 hover:bg-zinc-900 rounded-lg"
+            title="Back to Lobby"
+          >
+            <ChevronLeft className="w-4 h-4 text-amber-400" />
+            <span>Hand #{gameState.handNumber}</span>
+          </button>
+
+          <span className="text-zinc-700 hidden sm:inline">•</span>
+
+          <div className="hidden xs:flex items-center gap-1.5 px-2 py-0.5 bg-zinc-900 rounded-lg border border-zinc-800 text-[11px] font-mono flex-shrink-0">
             <span className="text-amber-400 font-bold">♠</span>
-            <span className="text-zinc-400 font-bold hidden sm:inline">TABLE:</span>
             <span className="text-amber-300 font-bold tracking-wider">{roomState.code}</span>
           </div>
 
-          <div className="flex items-center gap-1 text-[11px] font-mono text-zinc-400">
-            <span>Hand #{gameState.handNumber}</span>
-            <span className="text-zinc-600 hidden xs:inline">•</span>
-            <span className="hidden xs:inline">
-              {formatRupee(roomState.config.smallBlind)}/{formatRupee(roomState.config.bigBlind)}
-            </span>
-          </div>
+          <span className="text-zinc-600 hidden md:inline">•</span>
+          <span className="text-[11px] font-mono text-zinc-400 hidden md:inline">
+            {formatRupee(roomState.config.smallBlind)}/{formatRupee(roomState.config.bigBlind)} Blinds
+          </span>
         </div>
 
         {/* Right: Mic Voice Toggle, Rebuy, Chat, Settings, Leave */}
@@ -224,6 +235,15 @@ export const PokerTable: React.FC<PokerTableProps> = ({
             {unreadChatCount > 0 && (
               <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-rose-500 rounded-full border border-zinc-950" />
             )}
+          </button>
+
+          {/* Session Summary (Screen 10) */}
+          <button
+            onClick={() => setShowSummary(true)}
+            className="p-2 bg-zinc-900 hover:bg-zinc-800 text-zinc-300 rounded-xl border border-zinc-800 transition hidden sm:flex"
+            title="Session Summary"
+          >
+            <Trophy className="w-4 h-4 text-amber-400" />
           </button>
 
           {/* Hand History */}
@@ -379,6 +399,27 @@ export const PokerTable: React.FC<PokerTableProps> = ({
               </div>
             )}
 
+            {/* ── Screen 5: Floating Circular Timer Badge beside "You" ── */}
+            {isMyTurn && secondsRemaining !== null && (
+              <div
+                className="absolute z-25 flex flex-col items-center justify-center pointer-events-none select-none animate-pulse"
+                style={{
+                  left: isMobilePortrait ? '82%' : '70%',
+                  top: isMobilePortrait ? '84%' : '78%',
+                  transform: 'translate(-50%, -50%)',
+                }}
+              >
+                <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-full bg-zinc-950/95 border-2 border-emerald-500 shadow-2xl flex flex-col items-center justify-center p-1 backdrop-blur-md ring-4 ring-emerald-500/20">
+                  <span className="text-xs sm:text-sm font-black font-mono text-white leading-none">
+                    00:{secondsRemaining < 10 ? `0${secondsRemaining}` : secondsRemaining}
+                  </span>
+                  <span className="text-[8px] sm:text-[9px] font-mono font-bold text-emerald-400 uppercase tracking-tighter mt-0.5">
+                    Your Turn
+                  </span>
+                </div>
+              </div>
+            )}
+
             {/* ── "YOU" Seat Pod at Bottom Center of Oval Rail ── */}
             {me && (
               <div
@@ -498,6 +539,23 @@ export const PokerTable: React.FC<PokerTableProps> = ({
           isMuted={isMuted}
           onToggleMute={onToggleMute || (() => {})}
           onClose={() => setShowSettings(false)}
+        />
+      )}
+
+      {/* ══ SESSION COMPLETE SUMMARY MODAL (Screen 10) ══ */}
+      {showSummary && (
+        <GameSummaryModal
+          players={gameState.players.map((p) => ({
+            id: p.id,
+            name: p.name,
+            startingChips: roomState.config.startingChips,
+            endingChips: p.chips,
+            isMe: p.id === myPlayerId,
+          }))}
+          totalHands={gameState.handNumber}
+          biggestPot={gameState.pot}
+          onClose={() => setShowSummary(false)}
+          onBackToHome={onLeaveRoom}
         />
       )}
     </div>

@@ -43,13 +43,13 @@ export const RulesModal: React.FC<RulesModalProps> = ({ onClose }) => {
           </button>
         </div>
 
-        {/* Tab Selector */}
+        {/* Tab Selector matching Screen 8 */}
         <div className="flex bg-zinc-900/80 p-1 rounded-xl border border-zinc-800 my-4 flex-shrink-0">
           <button
             onClick={() => setTab('overview')}
-            className={`flex-1 py-1.5 rounded-lg text-xs font-bold transition ${
+            className={`flex-1 py-2 rounded-lg text-xs font-bold transition ${
               tab === 'overview'
-                ? 'bg-amber-500 text-zinc-950 shadow'
+                ? 'bg-emerald-800/80 border border-emerald-500/50 text-emerald-100 shadow'
                 : 'text-zinc-400 hover:text-white'
             }`}
           >
@@ -57,9 +57,9 @@ export const RulesModal: React.FC<RulesModalProps> = ({ onClose }) => {
           </button>
           <button
             onClick={() => setTab('rankings')}
-            className={`flex-1 py-1.5 rounded-lg text-xs font-bold transition ${
+            className={`flex-1 py-2 rounded-lg text-xs font-bold transition ${
               tab === 'rankings'
-                ? 'bg-amber-500 text-zinc-950 shadow'
+                ? 'bg-emerald-800/80 border border-emerald-500/50 text-emerald-100 shadow'
                 : 'text-zinc-400 hover:text-white'
             }`}
           >
@@ -67,13 +67,13 @@ export const RulesModal: React.FC<RulesModalProps> = ({ onClose }) => {
           </button>
           <button
             onClick={() => setTab('betting')}
-            className={`flex-1 py-1.5 rounded-lg text-xs font-bold transition ${
+            className={`flex-1 py-2 rounded-lg text-xs font-bold transition ${
               tab === 'betting'
-                ? 'bg-amber-500 text-zinc-950 shadow'
+                ? 'bg-emerald-800/80 border border-emerald-500/50 text-emerald-100 shadow'
                 : 'text-zinc-400 hover:text-white'
             }`}
           >
-            Betting Rounds
+            Betting
           </button>
         </div>
 
@@ -84,11 +84,10 @@ export const RulesModal: React.FC<RulesModalProps> = ({ onClose }) => {
               <div className="bg-zinc-900/60 border border-zinc-800/80 p-4 rounded-2xl">
                 <h3 className="font-bold text-amber-300 text-sm mb-1 flex items-center gap-1.5">
                   <Award className="w-4 h-4 text-amber-400" />
-                  Objective
+                  Goal
                 </h3>
                 <p className="text-zinc-300 leading-relaxed">
-                  Make the best 5-card poker hand using any combination of your 2 private hole cards
-                  and the 5 shared community cards on the table.
+                  Make the best 5-card hand using your 2 hole cards and 5 community cards.
                 </p>
               </div>
 
@@ -97,59 +96,42 @@ export const RulesModal: React.FC<RulesModalProps> = ({ onClose }) => {
                   <Layers className="w-4 h-4 text-emerald-400" />
                   Game Flow
                 </h3>
-                <div className="flex gap-2">
-                  <span className="w-5 h-5 rounded-full bg-zinc-800 text-amber-400 font-bold font-mono text-[10px] flex items-center justify-center shrink-0">
-                    1
-                  </span>
-                  <div>
-                    <span className="font-bold text-zinc-200">Pre-Flop:</span>
-                    <span className="text-zinc-400 ml-1">
-                      Each player gets 2 hole cards. Blinds are posted.
-                    </span>
-                  </div>
+                <div className="space-y-1.5 text-zinc-300 font-mono text-[11px]">
+                  <div>1. <span className="text-white font-bold">Pre-flop</span> – Players get 2 hole cards, post blinds.</div>
+                  <div>2. <span className="text-white font-bold">Flop</span> – 3 community cards are dealt.</div>
+                  <div>3. <span className="text-white font-bold">Turn</span> – 1 community card is dealt.</div>
+                  <div>4. <span className="text-white font-bold">River</span> – 1 final community card is dealt.</div>
+                  <div>5. <span className="text-white font-bold">Showdown</span> – Best hand wins the pot.</div>
                 </div>
-                <div className="flex gap-2">
-                  <span className="w-5 h-5 rounded-full bg-zinc-800 text-amber-400 font-bold font-mono text-[10px] flex items-center justify-center shrink-0">
-                    2
-                  </span>
-                  <div>
-                    <span className="font-bold text-zinc-200">The Flop:</span>
-                    <span className="text-zinc-400 ml-1">
-                      First 3 community cards are dealt face up.
-                    </span>
-                  </div>
+              </div>
+
+              {/* Screen 8 Visual Hand Rankings Grid */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between text-xs font-bold text-zinc-300">
+                  <span>Hand Rankings</span>
+                  <button
+                    onClick={() => setTab('rankings')}
+                    className="text-[11px] text-amber-400 hover:underline"
+                  >
+                    View all
+                  </button>
                 </div>
-                <div className="flex gap-2">
-                  <span className="w-5 h-5 rounded-full bg-zinc-800 text-amber-400 font-bold font-mono text-[10px] flex items-center justify-center shrink-0">
-                    3
-                  </span>
-                  <div>
-                    <span className="font-bold text-zinc-200">The Turn:</span>
-                    <span className="text-zinc-400 ml-1">
-                      A 4th community card is dealt.
-                    </span>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                  <div className="p-2.5 rounded-xl bg-zinc-900/80 border border-zinc-800 text-center">
+                    <div className="text-[10px] font-bold text-zinc-200">Royal Flush</div>
+                    <div className="text-[11px] font-mono font-black text-amber-400 mt-1">A♠ K♠ Q♠ J♠ 10♠</div>
                   </div>
-                </div>
-                <div className="flex gap-2">
-                  <span className="w-5 h-5 rounded-full bg-zinc-800 text-amber-400 font-bold font-mono text-[10px] flex items-center justify-center shrink-0">
-                    4
-                  </span>
-                  <div>
-                    <span className="font-bold text-zinc-200">The River:</span>
-                    <span className="text-zinc-400 ml-1">
-                      The 5th and final community card is dealt.
-                    </span>
+                  <div className="p-2.5 rounded-xl bg-zinc-900/80 border border-zinc-800 text-center">
+                    <div className="text-[10px] font-bold text-zinc-200">Straight Flush</div>
+                    <div className="text-[11px] font-mono font-black text-amber-400 mt-1">9♥ 8♥ 7♥ 6♥ 5♥</div>
                   </div>
-                </div>
-                <div className="flex gap-2">
-                  <span className="w-5 h-5 rounded-full bg-zinc-800 text-amber-400 font-bold font-mono text-[10px] flex items-center justify-center shrink-0">
-                    5
-                  </span>
-                  <div>
-                    <span className="font-bold text-zinc-200">Showdown:</span>
-                    <span className="text-zinc-400 ml-1">
-                      Remaining players reveal hands. Best hand wins pot!
-                    </span>
+                  <div className="p-2.5 rounded-xl bg-zinc-900/80 border border-zinc-800 text-center">
+                    <div className="text-[10px] font-bold text-zinc-200">Four of a Kind</div>
+                    <div className="text-[11px] font-mono font-black text-amber-400 mt-1">K♠ K♥ K♦ K♣</div>
+                  </div>
+                  <div className="p-2.5 rounded-xl bg-zinc-900/80 border border-zinc-800 text-center">
+                    <div className="text-[10px] font-bold text-zinc-200">Full House</div>
+                    <div className="text-[11px] font-mono font-black text-amber-400 mt-1">Q♠ Q♥ Q♦ 8♣ 8♦</div>
                   </div>
                 </div>
               </div>
@@ -208,13 +190,13 @@ export const RulesModal: React.FC<RulesModalProps> = ({ onClose }) => {
           )}
         </div>
 
-        {/* Footer */}
+        {/* Footer: Solid Gold Close Button matching Screen 8 */}
         <div className="pt-4 mt-2 border-t border-zinc-800 flex-shrink-0">
           <button
             onClick={onClose}
-            className="w-full py-2.5 bg-zinc-900 hover:bg-zinc-800 text-white font-bold text-xs rounded-xl border border-zinc-700 transition"
+            className="w-full py-3.5 bg-gradient-to-r from-amber-500 via-amber-400 to-yellow-500 hover:from-amber-400 hover:to-yellow-400 text-zinc-950 font-black text-xs uppercase tracking-wider rounded-2xl shadow-xl transition active:scale-95 flex items-center justify-center"
           >
-            Close Rules
+            Close
           </button>
         </div>
       </div>
