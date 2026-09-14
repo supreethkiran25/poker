@@ -212,7 +212,7 @@ export class Room {
 
     // Auto-check if legal, else auto-fold
     const state = this.engine.toPublicState(activePlayerId);
-    const canCheck = state.legalActions.some((a) => a.type === 'check');
+    const canCheck = state.legalActions.some((a: { type: string }) => a.type === 'check');
 
     const actionType: ActionType = canCheck ? 'check' : 'fold';
     this.handlePlayerAction(activePlayerId, `timeout-${Date.now()}`, actionType);
@@ -238,7 +238,7 @@ export class Room {
     }
 
     // Check if players have chips remaining for next hand
-    const activeWithChips = this.engine.getPlayers().filter((p) => p !== null && p.chips > 0);
+    const activeWithChips = this.engine.getPlayers().filter((p: { chips: number } | null) => p !== null && p.chips > 0);
     if (activeWithChips.length >= 2) {
       // Auto-schedule next hand after 6 seconds
       setTimeout(() => {

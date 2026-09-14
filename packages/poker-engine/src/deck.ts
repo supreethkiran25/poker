@@ -1,6 +1,22 @@
-import crypto from 'node:crypto';
 import type { Card } from '@poker/shared';
 import { SUITS, RANKS, createCard } from './card.js';
+
+/**
+ * Platform-agnostic cryptographically secure random integer generator.
+ * Works seamlessly in Node.js (via globalThis.crypto) and web environments
+ * without requiring @types/node.
+ */
+function getRandomInt(min: number, max: number): number {
+  const range = max - min;
+  if (range <= 0) return min;
+  const webCrypto = typeof globalThis !== 'undefined' ? (globalThis as any).crypto : null;
+  if (webCrypto && typeof webCrypto.getRandomValues === 'function') {
+    const buf = new Uint32Array(1);
+    webCrypto.getRandomValues(buf);
+    return min + (buf[0] % range);
+  }
+  return min + Math.floor(Math.random() * range);
+}
 
 export class Deck {
   private cards: Card[] = [];
@@ -24,13 +40,12 @@ export class Deck {
 
   /**
    * Cryptographically secure Fisher-Yates shuffle.
-   * Uses crypto.randomInt to prevent predictable PRNG seeds.
+   * Uses cryptographically random integers to prevent predictable PRNG seeds.
    */
   public shuffle(): void {
     const len = this.cards.length;
     for (let i = len - 1; i > 0; i--) {
-      // crypto.randomInt(min, max) returns min <= x < max
-      const j = crypto.randomInt(0, i + 1);
+      const j = getRandomInt(0, i + 1);
       const temp = this.cards[i];
       this.cards[i] = this.cards[j];
       this.cards[j] = temp;
