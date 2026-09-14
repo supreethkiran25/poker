@@ -46,6 +46,7 @@ export class Room {
   public chatMessages: ChatMessage[] = [];
   public recentActionIds: Set<string> = new Set();
   public timerHandle: NodeJS.Timeout | null = null;
+  public nextHandReadyPlayers: Set<string> = new Set();
   public onStateChanged?: () => void;
 
   constructor(hostId: string, hostName: string, hostAvatar: string, config?: RoomConfig) {
@@ -237,20 +238,53 @@ export class Room {
       );
     }
 
-    // Check if players have chips remaining for next hand
-    const activeWithChips = this.engine.getPlayers().filter((p: { chips: number } | null) => p !== null && p.chips > 0);
-    if (activeWithChips.length >= 2) {
-      // Auto-schedule next hand after 6 seconds
-      setTimeout(() => {
-        if (this.engine.getPhase() === 'HAND_COMPLETE') {
-          this.engine.startHand();
-          this.startTurnTimer();
-          if (this.onStateChanged) {
-            this.onStateChanged();
-          }
-        }
-      }, 6000);
+    // Hand finished: players can review results, rebuy if 0, and click Ready for Next Hand
+    this.nextHandReadyPlayers.clear();
+  }
+
+  public rebuyPlayer(playerId: string, amount?: number): boolean {
+    const defaultAmount = this.config.startingChips || 10000;
+    const finalAmount = amount && amount > 0 ? amount : defaultAmount;
+    const player = this.players.get(playerId);
+    if (!player) return false;
+
+    const added = this.engine.addChips(playerId, finalAmount);
+    if (added) {
+      player.chips = this.engine.getPlayer(playerId)?.chips ?? (player.chips + finalAmount);
+      return true;
     }
+    return false;
+  }
+
+  public setPlayerNextHandReady(playerId: string, ready: boolean): boolean {
+    if (ready) {
+      this.nextHandReadyPlayers.add(playerId);
+    } else {
+      this.nextHandReadyPlayers.delete(playerId);
+    }
+
+    // Check if all active players with chips are ready (min 2)
+    const activeWithChips = this.engine.getPlayers().filter((p) => p !== null && p.chips > 0);
+    if (activeWithChips.length >= 2) {
+      const allReady = activeWithChips.every((p) => p && this.nextHandReadyPlayers.has(p.id));
+      if (allReady && this.engine.getPhase() === 'HAND_COMPLETE') {
+        this.startNextHand();
+        return true;
+      }
+    }
+    return false;
+  }
+
+  public startNextHand(): boolean {
+    const activeWithChips = this.engine.getPlayers().filter((p) => p !== null && p.chips > 0);
+    if (activeWithChips.length < 2) {
+      return false;
+    }
+
+    this.nextHandReadyPlayers.clear();
+    this.engine.startHand();
+    this.startTurnTimer();
+    return true;
   }
 
   public getPublicState(): RoomPublicState {
@@ -276,6 +310,7 @@ export class Room {
       config: this.config,
       players: playersList,
       createdAt: this.createdAt,
+      nextHandReadyPlayerIds: Array.from(this.nextHandReadyPlayers),
     };
   }
 

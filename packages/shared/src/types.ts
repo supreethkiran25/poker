@@ -136,6 +136,7 @@ export interface RoomPublicState {
     chips: number;
   }[];
   createdAt: number;
+  nextHandReadyPlayerIds?: string[];
 }
 
 export interface ChatMessage {

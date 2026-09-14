@@ -144,6 +144,17 @@ export class PokerEngine {
     return newPlayer;
   }
 
+  public getPlayer(id: string): InternalPlayer | null {
+    return this.players.find((p) => p !== null && p.id === id) ?? null;
+  }
+
+  public addChips(id: string, amount: number): boolean {
+    const player = this.players.find((p) => p !== null && p.id === id);
+    if (!player || amount <= 0) return false;
+    player.chips += amount;
+    return true;
+  }
+
   public removePlayer(id: string): void {
     const idx = this.players.findIndex((p) => p !== null && p.id === id);
     if (idx === -1) return;

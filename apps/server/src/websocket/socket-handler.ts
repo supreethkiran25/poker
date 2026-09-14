@@ -393,7 +393,100 @@ export function registerSocketHandlers(io: Server): void {
       });
     });
 
-    // 11. Disconnect Handler
+    // 11. Leave Room
+    socket.on('room:leave', (payload: unknown) => {
+      if (!checkRateLimit()) return;
+      const data = payload as { roomCode?: string };
+      const code = (data?.roomCode || sessionData.currentRoomCode || '').toUpperCase();
+      const room = roomManager.getRoomByCode(code);
+      if (room) {
+        const playerName = sessionData.player.name;
+        room.removePlayer(sessionData.player.playerId);
+        socket.leave(`room:${room.code}`);
+        sessionData.currentRoomCode = undefined;
+        broadcastRoomState(room);
+        broadcastGameState(room);
+
+        io.to(`room:${room.code}`).emit('table:alert', {
+          id: crypto.randomUUID(),
+          type: 'LEAVE',
+          message: `⚠️ ${playerName} has left the table.`,
+        });
+      }
+    });
+
+    // 12. Player Rebuy (when chips reach 0)
+    socket.on('player:rebuy', (payload: unknown) => {
+      if (!checkRateLimit()) return;
+      const data = payload as { roomCode?: string; amount?: number };
+      const code = (data?.roomCode || sessionData.currentRoomCode || '').toUpperCase();
+      const room = roomManager.getRoomByCode(code);
+      if (!room) return;
+
+      const success = room.rebuyPlayer(sessionData.player.playerId, data?.amount);
+      if (success) {
+        broadcastRoomState(room);
+        broadcastGameState(room);
+
+        const rebuyAmt = data?.amount || room.config.startingChips;
+        io.to(`room:${room.code}`).emit('table:alert', {
+          id: crypto.randomUUID(),
+          type: 'REBUY',
+          message: `🪙 ${sessionData.player.name} bought ₹${rebuyAmt.toLocaleString('en-IN')} chips!`,
+        });
+      }
+    });
+
+    // 13. Ready for Next Hand
+    socket.on('player:ready-next', (payload: unknown) => {
+      if (!checkRateLimit()) return;
+      const data = payload as { roomCode?: string; ready: boolean };
+      const code = (data?.roomCode || sessionData.currentRoomCode || '').toUpperCase();
+      const room = roomManager.getRoomByCode(code);
+      if (!room) return;
+
+      const started = room.setPlayerNextHandReady(sessionData.player.playerId, !!data?.ready);
+      broadcastRoomState(room);
+      broadcastGameState(room);
+
+      if (started) {
+        io.to(`room:${room.code}`).emit('table:alert', {
+          id: crypto.randomUUID(),
+          type: 'INFO',
+          message: '♠ All players ready! Dealing next hand...',
+        });
+      }
+    });
+
+    // 14. Host Start Next Hand
+    socket.on('game:next-hand', (payload: unknown) => {
+      if (!checkRateLimit()) return;
+      const data = payload as { roomCode?: string };
+      const code = (data?.roomCode || sessionData.currentRoomCode || '').toUpperCase();
+      const room = roomManager.getRoomByCode(code);
+      if (!room) return;
+
+      if (room.hostId !== sessionData.player.playerId) {
+        socket.emit('error:notification', {
+          code: 'UNAUTHORIZED',
+          message: 'Only the host can deal the next hand.',
+        });
+        return;
+      }
+
+      const started = room.startNextHand();
+      if (started) {
+        broadcastRoomState(room);
+        broadcastGameState(room);
+        io.to(`room:${room.code}`).emit('table:alert', {
+          id: crypto.randomUUID(),
+          type: 'INFO',
+          message: '♠ Host dealt the next hand!',
+        });
+      }
+    });
+
+    // 15. Disconnect Handler
     socket.on('disconnect', () => {
       if (sessionData.currentRoomCode) {
         const room = roomManager.getRoomByCode(sessionData.currentRoomCode);
@@ -401,6 +494,12 @@ export function registerSocketHandlers(io: Server): void {
           room.setPlayerConnection(sessionData.player.playerId, false);
           broadcastRoomState(room);
           broadcastGameState(room);
+
+          io.to(`room:${room.code}`).emit('table:alert', {
+            id: crypto.randomUUID(),
+            type: 'DISCONNECT',
+            message: `⚠️ ${sessionData.player.name} disconnected.`,
+          });
         }
         // Also notify voice room on disconnect
         socket.to(`voice:${sessionData.currentRoomCode}`).emit('voice:peer-left', {

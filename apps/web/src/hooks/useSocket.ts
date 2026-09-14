@@ -14,6 +14,13 @@ export interface FloatingReaction extends ReactionItem {
   key: string;
 }
 
+export interface TableAlert {
+  id: string;
+  type: 'INFO' | 'LEAVE' | 'DISCONNECT' | 'RECONNECT' | 'REBUY';
+  message: string;
+  timestamp: number;
+}
+
 export function useSocket() {
   const socketRef = useRef<Socket | null>(null);
   const [isConnected, setIsConnected] = useState(false);
@@ -22,6 +29,7 @@ export function useSocket() {
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const [floatingReactions, setFloatingReactions] = useState<FloatingReaction[]>([]);
   const [errorNotification, setErrorNotification] = useState<string | null>(null);
+  const [tableAlerts, setTableAlerts] = useState<TableAlert[]>([]);
 
   const [playerId, setPlayerId] = useState<string>(() => localStorage.getItem('poker_player_id') || '');
   const [sessionToken, setSessionToken] = useState<string>(() => localStorage.getItem('poker_session_token') || '');
@@ -111,6 +119,14 @@ export function useSocket() {
       }, 2500);
     });
 
+    socket.on('table:alert', (alert: { id: string; type: any; message: string }) => {
+      const item: TableAlert = { ...alert, timestamp: Date.now() };
+      setTableAlerts((prev) => [...prev.slice(-3), item]);
+      setTimeout(() => {
+        setTableAlerts((prev) => prev.filter((a) => a.id !== alert.id));
+      }, 5000);
+    });
+
     socket.on('error:notification', (err: { code: string; message: string }) => {
       setErrorNotification(err.message);
       setTimeout(() => setErrorNotification(null), 4000);
@@ -120,6 +136,29 @@ export function useSocket() {
       socket.disconnect();
     };
   }, []);
+
+  const rebuyChips = useCallback((amount?: number) => {
+    if (!socketRef.current || !roomState) return;
+    socketRef.current.emit('player:rebuy', {
+      roomCode: roomState.code,
+      amount,
+    });
+  }, [roomState]);
+
+  const readyForNextHand = useCallback((ready: boolean = true) => {
+    if (!socketRef.current || !roomState) return;
+    socketRef.current.emit('player:ready-next', {
+      roomCode: roomState.code,
+      ready,
+    });
+  }, [roomState]);
+
+  const dealNextHand = useCallback(() => {
+    if (!socketRef.current || !roomState) return;
+    socketRef.current.emit('game:next-hand', {
+      roomCode: roomState.code,
+    });
+  }, [roomState]);
 
   const createRoom = useCallback((hostName: string, config?: RoomConfig, selectedAvatar?: string) => {
     if (!socketRef.current) return;
@@ -228,6 +267,10 @@ export function useSocket() {
     sendChat,
     sendReaction,
     rematch,
+    rebuyChips,
+    readyForNextHand,
+    dealNextHand,
+    tableAlerts,
     socket: socketRef.current,
   };
 }

@@ -28,6 +28,10 @@ export function App() {
     sendAction,
     sendChat,
     sendReaction,
+    rebuyChips,
+    readyForNextHand,
+    dealNextHand,
+    tableAlerts,
     socket,
   } = useSocket();
 
@@ -117,10 +121,14 @@ export function App() {
           isVoiceActive={isVoiceActive}
           isMuted={isMuted}
           speakingPeers={speakingPeers}
+          tableAlerts={tableAlerts}
           onToggleMute={toggleMute}
           onAction={sendAction}
           onLeaveRoom={leaveRoom}
           onOpenChat={() => setIsChatOpen(true)}
+          onRebuyChips={rebuyChips}
+          onReadyForNextHand={readyForNextHand}
+          onDealNextHand={dealNextHand}
           unreadChatCount={chatMessages.length}
         />
       )}

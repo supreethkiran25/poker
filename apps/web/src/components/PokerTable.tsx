@@ -13,7 +13,9 @@ import { ShowdownBanner } from './ShowdownBanner.js';
 import { HandHistoryModal } from './HandHistoryModal.js';
 import { RulesModal } from './RulesModal.js';
 import { TableSettingsModal } from './TableSettingsModal.js';
-import { soundManager } from '../audio/sound-manager.js';
+import { TableAlertBanner } from './TableAlertBanner.js';
+import { RebuyModal } from './RebuyModal.js';
+import type { TableAlert } from '../hooks/useSocket.js';
 import {
   Mic,
   MicOff,
@@ -23,7 +25,9 @@ import {
   Settings,
   LogOut,
   Clock,
-  Shield,
+  Coins,
+  Check,
+  Play,
 } from 'lucide-react';
 
 interface PokerTableProps {
@@ -33,10 +37,14 @@ interface PokerTableProps {
   isVoiceActive?: boolean;
   isMuted?: boolean;
   speakingPeers?: Record<string, boolean>;
+  tableAlerts?: TableAlert[];
   onToggleMute?: () => void;
   onAction: (type: ActionType, amount?: number) => void;
   onLeaveRoom: () => void;
   onOpenChat: () => void;
+  onRebuyChips?: (amount?: number) => void;
+  onReadyForNextHand?: (ready: boolean) => void;
+  onDealNextHand?: () => void;
   unreadChatCount?: number;
 }
 
@@ -47,22 +55,47 @@ export const PokerTable: React.FC<PokerTableProps> = ({
   isVoiceActive = false,
   isMuted = false,
   speakingPeers = {},
+  tableAlerts = [],
   onToggleMute,
   onAction,
   onLeaveRoom,
   onOpenChat,
+  onRebuyChips,
+  onReadyForNextHand,
+  onDealNextHand,
   unreadChatCount = 0,
 }) => {
   const [showHistory, setShowHistory] = useState(false);
   const [showRules, setShowRules] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
+  const [showRebuy, setShowRebuy] = useState(false);
   const [secondsRemaining, setSecondsRemaining] = useState<number | null>(null);
+  const [isMobilePortrait, setIsMobilePortrait] = useState(() => window.innerWidth < 640);
+
+  useEffect(() => {
+    const handleResize = () => {
+      setIsMobilePortrait(window.innerWidth < 640 && window.innerHeight > window.innerWidth);
+    };
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   const me = gameState.players.find((p) => p.id === myPlayerId);
   const isMyTurn = me?.isTurn ?? false;
   const opponents = gameState.players.filter((p) => p.id !== myPlayerId);
+  const isHost = me?.isHost ?? false;
 
-  // Turn timer countdown calculation
+  const nextHandReadyList = roomState.nextHandReadyPlayerIds || [];
+  const amIReadyForNext = nextHandReadyList.includes(myPlayerId);
+
+  // Auto prompt rebuy if player has 0 chips
+  useEffect(() => {
+    if (me && me.chips === 0) {
+      setShowRebuy(true);
+    }
+  }, [me?.chips]);
+
+  // Turn timer countdown
   useEffect(() => {
     if (!gameState.turnExpiresAt) {
       setSecondsRemaining(null);
@@ -81,25 +114,25 @@ export const PokerTable: React.FC<PokerTableProps> = ({
   }, [gameState.turnExpiresAt]);
 
   /**
-   * Distribute opponents neatly along the top arc (from 140° to 40°, or left-to-right top half)
-   * Using parametric ellipse coordinates relative to the felt dimensions:
-   *   left: 50% + rx * cos(angle)
-   *   top: 50% + ry * sin(angle)
+   * Distribute opponents around the perimeter ellipse matching Screen 6.
+   * In mobile portrait: rx = 41%, ry = 43%.
+   * In desktop landscape: rx = 44%, ry = 38%.
+   * Opponents spread along the 240° arc passing through the top (270°).
    */
   const getOpponentStyle = (seatIndex: number) => {
     const totalOpponents = opponents.length;
     const oppIdx = opponents.findIndex((p) => p.seatIndex === seatIndex);
     if (oppIdx === -1) return {};
 
-    // Spread across top arc: from 200° to 340° (where 270° is top center)
-    const arcStart = 200;
-    const arcEnd = 340;
-    const step = totalOpponents <= 1 ? 0 : (arcEnd - arcStart) / (totalOpponents - 1);
-    const angleDeg = totalOpponents === 1 ? 270 : arcStart + oppIdx * step;
+    // Arc from 150° (lower left) through 270° (top center) to 390°/30° (lower right)
+    const arcSpan = 240;
+    const startAngle = 150;
+    const step = totalOpponents <= 1 ? 0 : arcSpan / (totalOpponents + 1);
+    const angleDeg = totalOpponents === 1 ? 270 : startAngle + (oppIdx + 1) * step;
     const angleRad = (angleDeg * Math.PI) / 180;
 
-    const rx = 44; // percent horizontal radius
-    const ry = 38; // percent vertical radius
+    const rx = isMobilePortrait ? 41 : 44;
+    const ry = isMobilePortrait ? 43 : 38;
     const left = 50 + rx * Math.cos(angleRad);
     const top = 50 + ry * Math.sin(angleRad);
 
@@ -112,9 +145,19 @@ export const PokerTable: React.FC<PokerTableProps> = ({
     };
   };
 
+  const handleRebuySubmit = (amount: number) => {
+    setShowRebuy(false);
+    if (onRebuyChips) {
+      onRebuyChips(amount);
+    }
+  };
+
   return (
     <div className="relative flex flex-col w-full h-dvh bg-[#06080d] text-zinc-100 select-none overflow-hidden">
-      {/* ══ TOP NAVIGATION & CONTROLS BAR (Screen 6 Mobile Header) ══ */}
+      {/* ── Table Alert Banner (Leave, Disconnect, Rebuy alerts) ── */}
+      <TableAlertBanner alerts={tableAlerts} />
+
+      {/* ══ TOP NAVIGATION & STATUS BAR (Screen 6 Reference) ══ */}
       <header className="flex-shrink-0 flex items-center justify-between px-3 py-2 border-b border-zinc-800/80 bg-zinc-950/80 backdrop-blur-md z-30 min-h-[48px]">
         {/* Left: Table code & hand info */}
         <div className="flex items-center gap-2 min-w-0">
@@ -127,12 +170,24 @@ export const PokerTable: React.FC<PokerTableProps> = ({
           <div className="flex items-center gap-1 text-[11px] font-mono text-zinc-400">
             <span>Hand #{gameState.handNumber}</span>
             <span className="text-zinc-600 hidden xs:inline">•</span>
-            <span className="hidden xs:inline">{formatRupee(roomState.config.smallBlind)}/{formatRupee(roomState.config.bigBlind)}</span>
+            <span className="hidden xs:inline">
+              {formatRupee(roomState.config.smallBlind)}/{formatRupee(roomState.config.bigBlind)}
+            </span>
           </div>
         </div>
 
-        {/* Right: Mic Voice Toggle, Chat, Settings, Rules, Leave */}
+        {/* Right: Mic Voice Toggle, Rebuy, Chat, Settings, Leave */}
         <div className="flex items-center gap-1.5 flex-shrink-0">
+          {/* Quick Rebuy Button */}
+          <button
+            onClick={() => setShowRebuy(true)}
+            className="p-2 bg-zinc-900 hover:bg-zinc-800 text-amber-400 rounded-xl border border-amber-500/30 transition flex items-center gap-1 text-xs font-mono font-bold"
+            title="Rebuy Chips"
+          >
+            <Coins className="w-4 h-4 text-amber-400" />
+            <span className="hidden sm:inline">REBUY</span>
+          </button>
+
           {/* Voice Chat (Mic) Button */}
           {onToggleMute && (
             <button
@@ -173,15 +228,6 @@ export const PokerTable: React.FC<PokerTableProps> = ({
             <History className="w-4 h-4 text-amber-400" />
           </button>
 
-          {/* Rules */}
-          <button
-            onClick={() => setShowRules(true)}
-            className="p-2 bg-zinc-900 hover:bg-zinc-800 text-zinc-300 rounded-xl border border-zinc-800 transition hidden xs:flex"
-            title="Rules"
-          >
-            <BookOpen className="w-4 h-4 text-zinc-300" />
-          </button>
-
           {/* Table Settings */}
           <button
             onClick={() => setShowSettings(true)}
@@ -202,30 +248,46 @@ export const PokerTable: React.FC<PokerTableProps> = ({
         </div>
       </header>
 
-      {/* ══ TABLE ARENA (Felt, Racetrack, Players, Pot, Community Cards) ══ */}
+      {/* ══ TABLE ARENA (Portrait Oval on Mobile, Landscape on Desktop) ══ */}
       <main className="flex-1 flex items-center justify-center p-2 min-h-0 relative">
-        {/* Outer Oval Leather Rail matching reference Screen 5 & 6 */}
         <div
-          className="poker-table-outer-rail relative w-full"
-          style={{
-            aspectRatio: '16 / 9',
-            maxWidth: 'min(100%, calc((100dvh - 210px) * 16 / 9))',
-            maxHeight: 'calc(100dvh - 210px)',
-          }}
+          className="poker-table-outer-rail relative transition-all duration-300"
+          style={
+            isMobilePortrait
+              ? {
+                  width: 'min(94vw, 420px)',
+                  height: 'min(62vh, 520px)',
+                  maxHeight: 'calc(100dvh - 170px)',
+                  borderRadius: '120px',
+                }
+              : {
+                  width: '100%',
+                  aspectRatio: '16 / 9',
+                  maxWidth: 'min(100%, calc((100dvh - 200px) * 16 / 9))',
+                  maxHeight: 'calc(100dvh - 200px)',
+                  borderRadius: '9999px',
+                }
+          }
         >
           {/* Inner Woven Green Felt Surface */}
-          <div className="poker-felt-surface w-full h-full relative flex flex-col items-center justify-center">
+          <div
+            className="poker-felt-surface w-full h-full relative"
+            style={{ borderRadius: isMobilePortrait ? '110px' : '9999px' }}
+          >
             {/* Racetrack betting line */}
-            <div className="poker-betting-line" />
+            <div
+              className="poker-betting-line"
+              style={{ borderRadius: isMobilePortrait ? '95px' : '9999px' }}
+            />
 
-            {/* PokerCircle Watermark in Felt Center */}
+            {/* PokerCircle Watermark in Center */}
             <div className="absolute inset-0 flex items-center justify-center pointer-events-none select-none opacity-[0.04]">
               <span className="font-serif text-amber-100 font-black tracking-[0.25em] text-2xl sm:text-4xl md:text-5xl whitespace-nowrap">
                 POKER CIRCLE
               </span>
             </div>
 
-            {/* ── Opponent Player Pods on Table Rim ── */}
+            {/* ── Opponents Positioned on Oval Perimeter ── */}
             {opponents.map((player) => (
               <div key={player.id} style={getOpponentStyle(player.seatIndex)}>
                 <PlayerSeat
@@ -241,10 +303,16 @@ export const PokerTable: React.FC<PokerTableProps> = ({
               </div>
             ))}
 
-            {/* ── Center Zone: Pot + Community Cards + Phase ── */}
-            <div className="relative z-20 flex flex-col items-center gap-2 px-3">
-              {/* Main Pot Chip Badge */}
-              <div className="flex items-center gap-1.5 bg-black/85 backdrop-blur-md px-3.5 py-1.5 rounded-full border border-amber-500/40 shadow-xl">
+            {/* ── Table Center: Pot Badge ── */}
+            <div
+              className="absolute z-20 flex flex-col items-center gap-1.5 pointer-events-none"
+              style={{
+                left: '50%',
+                top: isMobilePortrait ? '34%' : '38%',
+                transform: 'translate(-50%, -50%)',
+              }}
+            >
+              <div className="flex items-center gap-1.5 bg-black/85 backdrop-blur-md px-3.5 py-1.5 rounded-full border border-amber-500/40 shadow-xl pointer-events-auto">
                 <span className="text-[10px] sm:text-xs uppercase tracking-widest text-amber-400 font-mono font-black">
                   POT
                 </span>
@@ -256,7 +324,7 @@ export const PokerTable: React.FC<PokerTableProps> = ({
 
               {/* Side Pots if any */}
               {gameState.sidePots && gameState.sidePots.length > 1 && (
-                <div className="flex items-center gap-1.5 flex-wrap justify-center">
+                <div className="flex items-center gap-1 flex-wrap justify-center pointer-events-auto">
                   {gameState.sidePots.map((sp, idx) => (
                     <span
                       key={idx}
@@ -267,75 +335,139 @@ export const PokerTable: React.FC<PokerTableProps> = ({
                   ))}
                 </div>
               )}
+            </div>
 
-              {/* 5 Community Cards */}
+            {/* ── Table Center: 5 Community Cards ── */}
+            <div
+              className="absolute z-20 flex flex-col items-center gap-1.5 pointer-events-auto"
+              style={{
+                left: '50%',
+                top: isMobilePortrait ? '50%' : '52%',
+                transform: 'translate(-50%, -50%)',
+              }}
+            >
               <CommunityCards cards={gameState.communityCards} phase={gameState.phase} />
-
-              {/* Phase Badge */}
               <div className="px-2.5 py-0.5 bg-black/60 rounded-full border border-emerald-500/30 text-[9px] sm:text-[10px] font-mono uppercase tracking-widest text-emerald-400/90">
                 {gameState.phase.replace(/_/g, ' ')}
               </div>
             </div>
+
+            {/* ── Player's Hole Cards on the Felt (in front of seat) ── */}
+            {me && me.holeCards && me.holeCards.length > 0 && !me.hasFolded && (
+              <div
+                className="absolute z-20 flex items-center gap-2 pointer-events-auto"
+                style={{
+                  left: '50%',
+                  top: isMobilePortrait ? '72%' : '76%',
+                  transform: 'translate(-50%, -50%)',
+                }}
+              >
+                {me.holeCards.map((c, idx) => (
+                  <CardView key={idx} card={c} size={isMobilePortrait ? 'md' : 'lg'} />
+                ))}
+              </div>
+            )}
+
+            {/* ── Turn Countdown Timer Ring beside Hole Cards ── */}
+            {isMyTurn && secondsRemaining !== null && (
+              <div
+                className="absolute z-20 pointer-events-auto animate-pulse"
+                style={{
+                  left: isMobilePortrait ? '78%' : '66%',
+                  top: isMobilePortrait ? '72%' : '76%',
+                  transform: 'translate(-50%, -50%)',
+                }}
+              >
+                <div className="flex items-center gap-1 px-2.5 py-1 bg-amber-500/25 border border-amber-400/60 rounded-2xl shadow-xl backdrop-blur-md">
+                  <Clock className="w-3.5 h-3.5 text-amber-400" />
+                  <span className="text-[11px] font-mono font-black text-white">
+                    00:{secondsRemaining < 10 ? `0${secondsRemaining}` : secondsRemaining}
+                  </span>
+                </div>
+              </div>
+            )}
+
+            {/* ── "YOU" Seat Pod at Bottom Center of Oval Rail ── */}
+            {me && (
+              <div
+                className="absolute z-25 pointer-events-auto"
+                style={{
+                  left: '50%',
+                  top: isMobilePortrait ? '93%' : '92%',
+                  transform: 'translate(-50%, -50%)',
+                }}
+              >
+                <PlayerSeat
+                  player={me}
+                  isMe={true}
+                  dealerSeat={gameState.dealerSeat}
+                  smallBlindSeat={gameState.smallBlindSeat}
+                  bigBlindSeat={gameState.bigBlindSeat}
+                  turnDuration={gameState.turnDuration}
+                  compact={false}
+                  isSpeaking={isVoiceActive && !isMuted}
+                />
+              </div>
+            )}
           </div>
         </div>
       </main>
 
-      {/* ══ BOTTOM ZONE: My Seat Pod + Hole Cards + Action Bar (Pinned cleanly) ══ */}
+      {/* ══ BOTTOM ACTION ZONE (Pinned cleanly with safe-area spacing) ══ */}
       <footer
-        className="flex-shrink-0 flex flex-col items-center z-30 px-2"
+        className="flex-shrink-0 flex flex-col items-center z-30 px-2.5 pb-2"
         style={{ paddingBottom: 'max(10px, env(safe-area-inset-bottom, 10px))' }}
       >
-        {/* Row with Player Pod, Turn Countdown & Hole Cards */}
-        <div className="flex items-center justify-center gap-3 mb-2 flex-wrap">
-          {/* My Seat Pod */}
-          {me && (
-            <PlayerSeat
-              player={me}
-              isMe={true}
-              dealerSeat={gameState.dealerSeat}
-              smallBlindSeat={gameState.smallBlindSeat}
-              bigBlindSeat={gameState.bigBlindSeat}
-              turnDuration={gameState.turnDuration}
-              compact={false}
-              isSpeaking={isVoiceActive && !isMuted}
-            />
-          )}
-
-          {/* Turn Countdown Badge (Screen 6 reference) */}
-          {isMyTurn && secondsRemaining !== null && (
-            <div className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-500/20 border border-amber-500/50 rounded-2xl animate-pulse">
-              <Clock className="w-4 h-4 text-amber-400" />
-              <div className="text-center">
-                <div className="text-[9px] uppercase tracking-wider font-bold text-amber-400 leading-none">
-                  Your Turn
+        <div className="w-full max-w-xl">
+          {/* Phase: Hand Complete - Next Hand Readiness Controls */}
+          {gameState.phase === 'HAND_COMPLETE' ? (
+            <div className="w-full bg-zinc-950/95 backdrop-blur-xl p-3 rounded-2xl border border-amber-500/40 shadow-2xl flex flex-col sm:flex-row items-center justify-between gap-3 animate-fade-in">
+              <div className="text-left">
+                <div className="text-xs font-bold text-amber-300">
+                  Hand #{gameState.handNumber} Complete
                 </div>
-                <div className="text-xs font-mono font-black text-white leading-tight">
-                  00:{secondsRemaining < 10 ? `0${secondsRemaining}` : secondsRemaining}
+                <div className="text-[10px] text-zinc-400 font-mono">
+                  {nextHandReadyList.length} player(s) ready for next hand
                 </div>
               </div>
-            </div>
-          )}
 
-          {/* Hole Cards */}
-          {me && me.holeCards && me.holeCards.length > 0 && !me.hasFolded && (
-            <div className="flex items-center gap-2">
-              {me.holeCards.map((c, idx) => (
-                <CardView key={idx} card={c} size="lg" />
-              ))}
-            </div>
-          )}
-        </div>
+              <div className="flex items-center gap-2 w-full sm:w-auto">
+                {/* Player Ready for Next Hand */}
+                <button
+                  onClick={() => onReadyForNextHand && onReadyForNextHand(!amIReadyForNext)}
+                  className={`flex-1 sm:flex-none px-4 py-2.5 rounded-xl font-bold text-xs uppercase tracking-wider transition flex items-center justify-center gap-1.5 ${
+                    amIReadyForNext
+                      ? 'bg-zinc-800 text-emerald-400 border border-emerald-500/40'
+                      : 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-lg'
+                  }`}
+                >
+                  <Check className="w-4 h-4" />
+                  <span>{amIReadyForNext ? 'Ready ✓' : 'Ready for Next Hand'}</span>
+                </button>
 
-        {/* Action Bar (Fold, Check, Call, Raise) */}
-        <div className="w-full max-w-xl">
-          <ActionBar
-            isMyTurn={isMyTurn}
-            legalActions={gameState.legalActions}
-            pot={gameState.pot}
-            currentBet={gameState.currentBet}
-            myChips={me?.chips ?? 0}
-            onAction={onAction}
-          />
+                {/* Host Deal Next Hand */}
+                {isHost && (
+                  <button
+                    onClick={onDealNextHand}
+                    className="flex-1 sm:flex-none px-4 py-2.5 bg-gradient-to-r from-amber-500 to-yellow-500 hover:from-amber-400 text-zinc-950 font-black text-xs uppercase tracking-wider rounded-xl shadow-lg transition flex items-center justify-center gap-1.5"
+                  >
+                    <Play className="w-4 h-4 fill-zinc-950" />
+                    <span>Deal Next Hand</span>
+                  </button>
+                )}
+              </div>
+            </div>
+          ) : (
+            /* Active Game: Standard 4 Action Buttons */
+            <ActionBar
+              isMyTurn={isMyTurn}
+              legalActions={gameState.legalActions}
+              pot={gameState.pot}
+              currentBet={gameState.currentBet}
+              myChips={me?.chips ?? 0}
+              onAction={onAction}
+            />
+          )}
         </div>
       </footer>
 
@@ -348,7 +480,15 @@ export const PokerTable: React.FC<PokerTableProps> = ({
         />
       )}
 
-      {/* ══ MODALS: Hand History, Rules, Table Settings ══ */}
+      {/* ══ REBUY MODAL (when chips hit 0 or player clicks Rebuy) ══ */}
+      <RebuyModal
+        startingChips={roomState.config.startingChips}
+        onRebuy={handleRebuySubmit}
+        onLeave={onLeaveRoom}
+        isOpen={showRebuy}
+      />
+
+      {/* ══ HAND HISTORY MODAL ══ */}
       {showHistory && (
         <HandHistoryModal
           roomCode={roomState.code}
@@ -356,8 +496,10 @@ export const PokerTable: React.FC<PokerTableProps> = ({
         />
       )}
 
+      {/* ══ RULES MODAL ══ */}
       {showRules && <RulesModal onClose={() => setShowRules(false)} />}
 
+      {/* ══ TABLE SETTINGS MODAL ══ */}
       {showSettings && (
         <TableSettingsModal
           isVoiceActive={isVoiceActive}
