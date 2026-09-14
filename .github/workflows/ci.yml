@@ -1,0 +1,38 @@
+name: CI Pipeline
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build shared packages
+        run: |
+          npm run build -w packages/shared
+          npm run build -w packages/poker-engine
+
+      - name: Run Poker Engine Unit Tests
+        run: npm run test:engine
+
+      - name: Run Server Integration Tests
+        run: npm run test:server
+
+      - name: Build Web Application
+        run: npm run build -w apps/web

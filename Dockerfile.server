@@ -1,0 +1,35 @@
+FROM node:22-alpine AS builder
+WORKDIR /app
+
+COPY package*.json ./
+COPY packages/shared/package*.json ./packages/shared/
+COPY packages/poker-engine/package*.json ./packages/poker-engine/
+COPY apps/server/package*.json ./apps/server/
+
+RUN npm install
+
+COPY packages/shared ./packages/shared
+COPY packages/poker-engine ./packages/poker-engine
+COPY apps/server ./apps/server
+
+RUN npm run build -w packages/shared
+RUN npm run build -w packages/poker-engine
+RUN npm run build -w apps/server
+
+FROM node:22-alpine AS runner
+WORKDIR /app
+ENV NODE_ENV=production
+
+COPY package*.json ./
+COPY packages/shared/package*.json ./packages/shared/
+COPY packages/poker-engine/package*.json ./packages/poker-engine/
+COPY apps/server/package*.json ./apps/server/
+
+RUN npm install --omit=dev
+
+COPY --from=builder /app/packages/shared/dist ./packages/shared/dist
+COPY --from=builder /app/packages/poker-engine/dist ./packages/poker-engine/dist
+COPY --from=builder /app/apps/server/dist ./apps/server/dist
+
+EXPOSE 4000
+CMD ["node", "apps/server/dist/server.js"]
