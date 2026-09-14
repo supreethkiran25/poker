@@ -1,9 +1,9 @@
 services:
   - type: web
-    name: poker-server
+    name: poker-app
     env: node
     plan: free
-    buildCommand: npm install && npm run build -w packages/shared && npm run build -w packages/poker-engine && npm run build -w apps/server
+    buildCommand: npm install && npm run build
     startCommand: npm run start -w apps/server
     envVars:
       - key: PORT

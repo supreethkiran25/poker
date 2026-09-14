@@ -80,6 +80,25 @@ const io = new Server(server, {
 
 registerSocketHandlers(io);
 
+// Serve static frontend files if built
+import { fileURLToPath } from 'node:url';
+import path from 'node:path';
+import fs from 'node:fs';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const webDistPath = path.resolve(__dirname, '../../web/dist');
+
+if (fs.existsSync(webDistPath)) {
+  app.use(express.static(webDistPath));
+  app.get('*', (req, res, next) => {
+    if (req.path.startsWith('/api/') || req.path.startsWith('/socket.io/')) {
+      return next();
+    }
+    res.sendFile(path.join(webDistPath, 'index.html'));
+  });
+}
+
 server.listen(CONFIG.PORT, () => {
   console.log(`[Poker Server] Running on port ${CONFIG.PORT} in ${CONFIG.NODE_ENV} mode`);
 });
