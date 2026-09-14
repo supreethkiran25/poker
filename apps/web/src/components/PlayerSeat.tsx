@@ -3,6 +3,7 @@ import type { PlayerPublicState } from '@poker/shared';
 import { formatRupee } from '@poker/shared';
 import { CardView } from './CardView.js';
 import { ChipStack } from './ChipStack.js';
+import { Mic, MicOff } from 'lucide-react';
 
 interface PlayerSeatProps {
   player: PlayerPublicState;
@@ -12,8 +13,9 @@ interface PlayerSeatProps {
   bigBlindSeat: number;
   positionClass?: string;
   turnDuration?: number;
-  /** compact=true for opponent pods on the oval rim */
   compact?: boolean;
+  isSpeaking?: boolean;
+  isMuted?: boolean;
 }
 
 export const PlayerSeat: React.FC<PlayerSeatProps> = ({
@@ -23,6 +25,8 @@ export const PlayerSeat: React.FC<PlayerSeatProps> = ({
   smallBlindSeat,
   bigBlindSeat,
   compact = false,
+  isSpeaking = false,
+  isMuted = false,
 }) => {
   const isDealer = player.seatIndex === dealerSeat;
   const isSB = player.seatIndex === smallBlindSeat;
@@ -30,115 +34,147 @@ export const PlayerSeat: React.FC<PlayerSeatProps> = ({
 
   return (
     <div
-      className={`flex flex-col items-center transition-all duration-300 ${
-        player.hasFolded ? 'opacity-35 grayscale-[50%]' : 'opacity-100'
+      className={`relative flex flex-col items-center transition-all duration-300 select-none ${
+        player.hasFolded ? 'opacity-40 grayscale-[40%]' : 'opacity-100'
       }`}
     >
-      {/* Current bet chip above the seat */}
+      {/* Current bet chip badge above or beside seat */}
       {player.currentBet > 0 && (
-        <div className="mb-1 z-10">
+        <div className="mb-1 z-20">
           <ChipStack amount={player.currentBet} size="sm" />
         </div>
       )}
 
-      {/* ── Seat Badge ── */}
+      {/* ── Seat Pod ── */}
       <div
-        className={`relative flex items-center gap-2 rounded-2xl bg-zinc-900/95 backdrop-blur-md border shadow-2xl transition-all duration-300 ${
+        className={`relative flex items-center gap-2 rounded-2xl bg-zinc-950/90 backdrop-blur-md border shadow-2xl transition-all duration-300 ${
           player.isTurn
-            ? 'border-amber-400 active-player-glow'
+            ? 'border-amber-400 ring-2 ring-amber-400/40 active-player-glow'
+            : isSpeaking
+            ? 'border-emerald-400 ring-2 ring-emerald-400/50'
             : isMe
-            ? 'border-emerald-500/70 ring-1 ring-emerald-500/25'
-            : 'border-zinc-700/70'
-        } ${compact ? 'px-2 py-1.5' : 'px-3 py-2'}`}
-        style={{ minWidth: compact ? '90px' : '120px', maxWidth: compact ? '140px' : '180px' }}
+            ? 'border-emerald-500/60 ring-1 ring-emerald-500/20'
+            : 'border-zinc-800'
+        } ${compact ? 'px-2 py-1' : 'px-3 py-1.5'}`}
+        style={{
+          minWidth: compact ? '80px' : '110px',
+          maxWidth: compact ? '130px' : '170px',
+        }}
       >
-        {/* Avatar */}
+        {/* Avatar with speaking wave & dealer button */}
         <div className="relative flex-shrink-0">
+          {/* Speaking glowing pulse ring */}
+          {isSpeaking && (
+            <span className="absolute -inset-1 rounded-full bg-emerald-500/40 animate-ping" />
+          )}
+
           <div
-            className={`rounded-full bg-gradient-to-tr from-amber-600 via-amber-700 to-yellow-500 p-0.5 shadow-md flex items-center justify-center ${
-              compact ? 'w-7 h-7' : 'w-9 h-9'
-            }`}
+            className={`relative rounded-full bg-gradient-to-tr from-amber-600 via-amber-700 to-yellow-500 p-0.5 shadow-md flex items-center justify-center ${
+              compact ? 'w-7 h-7' : 'w-8 h-8'
+            } ${isSpeaking ? 'ring-2 ring-emerald-400' : ''}`}
           >
             <div
               className={`w-full h-full rounded-full bg-zinc-900 flex items-center justify-center font-black text-amber-300 ${
-                compact ? 'text-[10px]' : 'text-sm'
+                compact ? 'text-[9px]' : 'text-xs'
               }`}
             >
               {player.name.slice(0, 2).toUpperCase()}
             </div>
           </div>
 
-          {/* Connection dot */}
+          {/* Mic icon indicator */}
+          {isSpeaking && (
+            <div className="absolute -top-1 -right-1 w-3.5 h-3.5 bg-emerald-500 rounded-full flex items-center justify-center shadow">
+              <Mic className="w-2 h-2 text-zinc-950" />
+            </div>
+          )}
+
+          {/* Connection status */}
           <div className="absolute -bottom-0.5 -right-0.5">
             {player.isConnected ? (
-              <span className="flex h-2.5 w-2.5 relative">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
-                <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500 border-2 border-zinc-900" />
+              <span className="flex h-2 w-2 relative">
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500 border border-zinc-950" />
               </span>
             ) : (
-              <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-red-500 border-2 border-zinc-900" title="Disconnected" />
+              <span className="relative inline-flex rounded-full h-2 w-2 bg-red-500 border border-zinc-950" title="Disconnected" />
             )}
           </div>
         </div>
 
-        {/* Player details */}
+        {/* Player name & chip balance */}
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-1 min-w-0">
-            <span className={`font-bold text-zinc-100 truncate leading-none ${compact ? 'text-[10px]' : 'text-xs'}`}>
+            <span
+              className={`font-bold text-zinc-100 truncate leading-none ${
+                compact ? 'text-[10px]' : 'text-xs'
+              }`}
+            >
               {player.name}
             </span>
             {isMe && (
-              <span className="text-[8px] bg-emerald-500/20 text-emerald-400 px-1 rounded font-mono font-black flex-shrink-0 leading-none">
+              <span className="text-[7px] bg-emerald-500/20 text-emerald-400 px-1 py-0.5 rounded font-mono font-bold flex-shrink-0 leading-none">
                 YOU
               </span>
             )}
           </div>
           <div className="mt-0.5">
-            <span className={`text-amber-300 font-mono font-bold leading-none ${compact ? 'text-[10px]' : 'text-[11px]'}`}>
+            <span
+              className={`text-amber-300 font-mono font-bold leading-none ${
+                compact ? 'text-[10px]' : 'text-[11px]'
+              }`}
+            >
               {formatRupee(player.chips)}
             </span>
           </div>
         </div>
 
-        {/* Position badges */}
+        {/* Dealer / Small Blind / Big Blind Buttons */}
         {isDealer && (
-          <div className="absolute -top-2.5 -right-2.5 w-5 h-5 rounded-full bg-white text-zinc-900 font-black text-[10px] flex items-center justify-center shadow-lg border-2 border-zinc-300 z-10">
+          <div
+            className="absolute -top-2 -right-2 w-5 h-5 rounded-full bg-white text-zinc-950 font-black text-[9px] flex items-center justify-center shadow-lg border border-zinc-300 z-30"
+            title="Dealer Button"
+          >
             D
           </div>
         )}
-        {!isDealer && isSB && (
-          <div className="absolute -top-2.5 -right-2.5 px-1 rounded-full bg-blue-600 text-white font-black text-[9px] flex items-center justify-center shadow-lg border border-blue-300 z-10 py-0.5">
+        {isSB && !isDealer && (
+          <div
+            className="absolute -top-2 -right-2 px-1.5 py-0.5 rounded-full bg-blue-600 text-white font-mono font-black text-[8px] flex items-center justify-center shadow-lg border border-blue-400 z-30"
+            title="Small Blind"
+          >
             SB
           </div>
         )}
-        {!isDealer && isBB && (
-          <div className="absolute -top-2.5 -right-2.5 px-1 rounded-full bg-purple-600 text-white font-black text-[9px] flex items-center justify-center shadow-lg border border-purple-300 z-10 py-0.5">
+        {isBB && !isDealer && (
+          <div
+            className="absolute -top-2 -right-2 px-1.5 py-0.5 rounded-full bg-purple-600 text-white font-mono font-black text-[8px] flex items-center justify-center shadow-lg border border-purple-400 z-30"
+            title="Big Blind"
+          >
             BB
-          </div>
-        )}
-
-        {/* All-in badge */}
-        {player.isAllIn && (
-          <div className="absolute -top-2.5 left-2 px-1.5 rounded-full bg-rose-600 text-white font-black text-[8px] flex items-center justify-center shadow-md animate-pulse z-10 py-0.5">
-            ALL·IN
           </div>
         )}
       </div>
 
-      {/* Opponent hole cards (face-down or showdown reveal) */}
+      {/* Opponent cards (face down if in hand) */}
       {!isMe && player.holeCards && player.holeCards.length > 0 && !player.hasFolded && (
-        <div className="flex items-center -space-x-3 mt-1 origin-top" style={{ transform: 'scale(0.75)' }}>
+        <div className="flex items-center -space-x-3 mt-1">
           {player.holeCards.map((c, i) => (
             <CardView key={i} card={c} size="sm" />
           ))}
         </div>
       )}
 
-      {/* Last action pill */}
-      {player.lastAction && (
-        <div className="mt-1 px-2 py-0.5 bg-black/80 rounded-full border border-zinc-700 text-[9px] font-mono text-zinc-300 uppercase tracking-wider whitespace-nowrap">
-          {player.lastAction.type}
-          {player.lastAction.amount ? ` ${formatRupee(player.lastAction.amount)}` : ''}
+      {/* Folded badge */}
+      {player.hasFolded && (
+        <div className="mt-0.5 text-[9px] font-mono text-zinc-500 uppercase tracking-widest">
+          Folded
+        </div>
+      )}
+
+      {/* All-in badge */}
+      {player.isAllIn && !player.hasFolded && (
+        <div className="mt-0.5 text-[9px] font-mono font-bold text-rose-400 uppercase tracking-widest animate-pulse">
+          ALL-IN
         </div>
       )}
     </div>

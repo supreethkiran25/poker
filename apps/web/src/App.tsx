@@ -1,7 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { useSocket } from './hooks/useSocket.js';
+import { useVoiceChat } from './hooks/useVoiceChat.js';
 import { LandingPage } from './pages/LandingPage.js';
 import { CreateRoomModal } from './components/CreateRoomModal.js';
+import { JoinTableModal } from './components/JoinTableModal.js';
 import { LobbyView } from './components/LobbyView.js';
 import { PokerTable } from './components/PokerTable.js';
 import { ChatAndReactions } from './components/ChatAndReactions.js';
@@ -26,9 +28,22 @@ export function App() {
     sendAction,
     sendChat,
     sendReaction,
+    socket,
   } = useSocket();
 
+  // WebRTC Voice Chat Hook
+  const {
+    isVoiceActive,
+    isMuted,
+    isSpeaking,
+    speakingPeers,
+    toggleMute,
+    micError,
+  } = useVoiceChat(socket, roomState?.code, playerId);
+
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [showJoinModal, setShowJoinModal] = useState(false);
+  const [isChatOpen, setIsChatOpen] = useState(false);
   const [initialRoomCode, setInitialRoomCode] = useState<string>('');
 
   // Extract invite code from pathname /room/:code
@@ -46,6 +61,7 @@ export function App() {
   };
 
   const handleJoinRoom = (code: string, name: string) => {
+    setShowJoinModal(false);
     joinRoom(code, name);
   };
 
@@ -60,10 +76,10 @@ export function App() {
       )}
 
       {/* Global Error Notification Toast */}
-      {errorNotification && (
-        <div className="fixed top-4 left-1/2 -translate-x-1/2 z-50 bg-rose-950/95 border border-rose-500 text-rose-200 text-xs font-semibold py-2.5 px-5 rounded-2xl shadow-2xl flex items-center gap-2 animate-bounce">
-          <AlertCircle className="w-4 h-4 text-rose-400" />
-          <span>{errorNotification}</span>
+      {(errorNotification || micError) && (
+        <div className="fixed top-4 left-1/2 -translate-x-1/2 z-50 bg-rose-950/95 border border-rose-500 text-rose-200 text-xs font-semibold py-2 px-4 rounded-2xl shadow-2xl flex items-center gap-2 animate-bounce">
+          <AlertCircle className="w-4 h-4 text-rose-400 shrink-0" />
+          <span>{errorNotification || micError}</span>
         </div>
       )}
 
@@ -72,6 +88,7 @@ export function App() {
         <LandingPage
           initialRoomCode={initialRoomCode}
           onOpenCreate={() => setShowCreateModal(true)}
+          onOpenJoin={() => setShowJoinModal(true)}
           onJoinRoom={handleJoinRoom}
         />
       )}
@@ -81,6 +98,10 @@ export function App() {
         <LobbyView
           roomState={roomState}
           myPlayerId={playerId}
+          isVoiceActive={isVoiceActive}
+          isMuted={isMuted}
+          speakingPeers={speakingPeers}
+          onToggleMute={toggleMute}
           onToggleReady={toggleReady}
           onStartGame={startGame}
           onLeaveRoom={leaveRoom}
@@ -93,27 +114,44 @@ export function App() {
           roomState={roomState}
           gameState={gameState}
           myPlayerId={playerId}
+          isVoiceActive={isVoiceActive}
+          isMuted={isMuted}
+          speakingPeers={speakingPeers}
+          onToggleMute={toggleMute}
           onAction={sendAction}
           onLeaveRoom={leaveRoom}
+          onOpenChat={() => setIsChatOpen(true)}
+          unreadChatCount={chatMessages.length}
         />
       )}
 
-      {/* Chat & Floating Reactions — only during ACTIVE GAME, never in lobby */}
-      {roomState && gameState && gameState.phase !== 'WAITING_FOR_PLAYERS' && (
+      {/* Table Chat & Quick Reactions (Slide-over drawer - zero table obstruction) */}
+      {roomState && (
         <ChatAndReactions
           messages={chatMessages}
           reactions={floatingReactions}
           onSendMessage={sendChat}
           onSendReaction={sendReaction}
+          isOpen={isChatOpen}
+          onClose={() => setIsChatOpen(false)}
         />
       )}
 
-      {/* Create Room Modal */}
+      {/* Create Table Modal (Step-by-step wizard) */}
       {showCreateModal && (
         <CreateRoomModal
           initialName={playerName}
           onClose={() => setShowCreateModal(false)}
           onCreate={handleCreateRoom}
+        />
+      )}
+
+      {/* Join Table Modal */}
+      {showJoinModal && (
+        <JoinTableModal
+          initialCode={initialRoomCode}
+          onClose={() => setShowJoinModal(false)}
+          onJoin={handleJoinRoom}
         />
       )}
     </div>

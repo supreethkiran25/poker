@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import type {
   GamePublicState,
   RoomPublicState,
@@ -11,65 +11,95 @@ import { CardView } from './CardView.js';
 import { ActionBar } from './ActionBar.js';
 import { ShowdownBanner } from './ShowdownBanner.js';
 import { HandHistoryModal } from './HandHistoryModal.js';
+import { RulesModal } from './RulesModal.js';
+import { TableSettingsModal } from './TableSettingsModal.js';
 import { soundManager } from '../audio/sound-manager.js';
-import { Volume2, VolumeX, History, LogOut, Shield } from 'lucide-react';
+import {
+  Mic,
+  MicOff,
+  MessageSquare,
+  History,
+  BookOpen,
+  Settings,
+  LogOut,
+  Clock,
+  Shield,
+} from 'lucide-react';
 
 interface PokerTableProps {
   roomState: RoomPublicState;
   gameState: GamePublicState;
   myPlayerId: string;
+  isVoiceActive?: boolean;
+  isMuted?: boolean;
+  speakingPeers?: Record<string, boolean>;
+  onToggleMute?: () => void;
   onAction: (type: ActionType, amount?: number) => void;
   onLeaveRoom: () => void;
+  onOpenChat: () => void;
+  unreadChatCount?: number;
 }
 
 export const PokerTable: React.FC<PokerTableProps> = ({
   roomState,
   gameState,
   myPlayerId,
+  isVoiceActive = false,
+  isMuted = false,
+  speakingPeers = {},
+  onToggleMute,
   onAction,
   onLeaveRoom,
+  onOpenChat,
+  unreadChatCount = 0,
 }) => {
-  const [isMuted, setIsMuted] = useState(soundManager.getMuted());
   const [showHistory, setShowHistory] = useState(false);
+  const [showRules, setShowRules] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
+  const [secondsRemaining, setSecondsRemaining] = useState<number | null>(null);
 
   const me = gameState.players.find((p) => p.id === myPlayerId);
   const isMyTurn = me?.isTurn ?? false;
   const opponents = gameState.players.filter((p) => p.id !== myPlayerId);
 
-  const toggleSound = () => {
-    const muted = soundManager.toggleMute();
-    setIsMuted(muted);
-  };
+  // Turn timer countdown calculation
+  useEffect(() => {
+    if (!gameState.turnExpiresAt) {
+      setSecondsRemaining(null);
+      return;
+    }
 
-  const totalSeats = roomState.config.maxPlayers;
-  const mySeatIndex = me ? me.seatIndex : 0;
+    const updateTimer = () => {
+      const now = Date.now();
+      const diff = Math.max(0, Math.ceil((gameState.turnExpiresAt! - now) / 1000));
+      setSecondsRemaining(diff);
+    };
+
+    updateTimer();
+    const interval = setInterval(updateTimer, 500);
+    return () => clearInterval(interval);
+  }, [gameState.turnExpiresAt]);
 
   /**
-   * Position OPPONENT players around the top arc of the oval (0° to 180°, i.e. top half).
-   * We map each opponent's relative position to an angle in the top semicircle
-   * so they never overlap the bottom zone reserved for the current player.
-   *
-   * Using ellipse percentages:
-   *   rx = 44%  (horizontal radius of the ellipse, percent of container width)
-   *   ry = 38%  (vertical radius, percent of container height)
-   *
-   * The felt surface has overflow:visible so pods can sit on the rail.
+   * Distribute opponents neatly along the top arc (from 140° to 40°, or left-to-right top half)
+   * Using parametric ellipse coordinates relative to the felt dimensions:
+   *   left: 50% + rx * cos(angle)
+   *   top: 50% + ry * sin(angle)
    */
   const getOpponentStyle = (seatIndex: number) => {
     const totalOpponents = opponents.length;
-    const myIdx = opponents.findIndex((p) => p.seatIndex === seatIndex);
-    if (myIdx === -1) return {};
+    const oppIdx = opponents.findIndex((p) => p.seatIndex === seatIndex);
+    if (oppIdx === -1) return {};
 
-    // Spread opponents across top 200° arc (from -100° to +100° relative to top)
-    // Top = 270° in standard trig (or -90°). We spread ±100° around the top.
-    const spanDeg = Math.min(200, totalOpponents * 45 + 30);
-    const startDeg = 270 - spanDeg / 2;
-    const stepDeg = totalOpponents <= 1 ? 0 : spanDeg / (totalOpponents - 1);
-    const angleDeg = startDeg + myIdx * stepDeg;
+    // Spread across top arc: from 200° to 340° (where 270° is top center)
+    const arcStart = 200;
+    const arcEnd = 340;
+    const step = totalOpponents <= 1 ? 0 : (arcEnd - arcStart) / (totalOpponents - 1);
+    const angleDeg = totalOpponents === 1 ? 270 : arcStart + oppIdx * step;
     const angleRad = (angleDeg * Math.PI) / 180;
 
-    const rx = 44;
-    const ry = 38;
+    const rx = 44; // percent horizontal radius
+    const ry = 38; // percent vertical radius
     const left = 50 + rx * Math.cos(angleRad);
     const top = 50 + ry * Math.sin(angleRad);
 
@@ -83,50 +113,98 @@ export const PokerTable: React.FC<PokerTableProps> = ({
   };
 
   return (
-    <div
-      className="relative flex flex-col bg-[#06080d] select-none"
-      style={{ width: '100%', height: '100dvh', overflow: 'hidden' }}
-    >
-      {/* ══ TOP STATUS BAR ══ */}
-      <div className="flex-shrink-0 flex items-center justify-between px-3 py-2 z-30 gap-2" style={{ minHeight: '48px' }}>
+    <div className="relative flex flex-col w-full h-dvh bg-[#06080d] text-zinc-100 select-none overflow-hidden">
+      {/* ══ TOP NAVIGATION & CONTROLS BAR (Screen 6 Mobile Header) ══ */}
+      <header className="flex-shrink-0 flex items-center justify-between px-3 py-2 border-b border-zinc-800/80 bg-zinc-950/80 backdrop-blur-md z-30 min-h-[48px]">
+        {/* Left: Table code & hand info */}
         <div className="flex items-center gap-2 min-w-0">
-          <div className="flex items-center gap-1.5 px-2.5 py-1 bg-zinc-900/95 rounded-xl border border-zinc-800 text-[11px] font-mono flex-shrink-0">
-            <span className="text-amber-400 font-black">♠</span>
-            <span className="text-amber-400 font-bold">TABLE:</span>
-            <span className="text-white font-bold tracking-widest">{roomState.code}</span>
+          <div className="flex items-center gap-1.5 px-2.5 py-1 bg-zinc-900 rounded-xl border border-zinc-800 text-[11px] font-mono flex-shrink-0">
+            <span className="text-amber-400 font-bold">♠</span>
+            <span className="text-zinc-400 font-bold hidden sm:inline">TABLE:</span>
+            <span className="text-amber-300 font-bold tracking-wider">{roomState.code}</span>
           </div>
-          <div className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 bg-zinc-900/90 rounded-xl border border-zinc-800 text-[11px] font-mono text-zinc-400">
+
+          <div className="flex items-center gap-1 text-[11px] font-mono text-zinc-400">
             <span>Hand #{gameState.handNumber}</span>
-            <span className="text-zinc-600">•</span>
-            <span>{formatRupee(roomState.config.smallBlind)}/{formatRupee(roomState.config.bigBlind)}</span>
+            <span className="text-zinc-600 hidden xs:inline">•</span>
+            <span className="hidden xs:inline">{formatRupee(roomState.config.smallBlind)}/{formatRupee(roomState.config.bigBlind)}</span>
           </div>
         </div>
 
-        <div className="hidden lg:flex items-center gap-1.5 px-3 py-1 bg-zinc-900/50 rounded-full border border-zinc-800/60 max-w-xs">
-          <Shield className="w-3 h-3 text-amber-400 flex-shrink-0" />
-          <span className="text-[10px] text-zinc-500 font-mono truncate">{VIRTUAL_CURRENCY_DISCLAIMER}</span>
-        </div>
-
+        {/* Right: Mic Voice Toggle, Chat, Settings, Rules, Leave */}
         <div className="flex items-center gap-1.5 flex-shrink-0">
-          <button onClick={toggleSound} className="p-2 bg-zinc-900/90 hover:bg-zinc-800 rounded-xl border border-zinc-800 transition" title={isMuted ? 'Unmute' : 'Mute'}>
-            {isMuted ? <VolumeX className="w-4 h-4 text-rose-400" /> : <Volume2 className="w-4 h-4 text-amber-400" />}
+          {/* Voice Chat (Mic) Button */}
+          {onToggleMute && (
+            <button
+              onClick={onToggleMute}
+              className={`p-2 rounded-xl border transition flex items-center gap-1 ${
+                isVoiceActive && !isMuted
+                  ? 'bg-emerald-500/20 border-emerald-500/60 text-emerald-300 ring-2 ring-emerald-500/30'
+                  : 'bg-zinc-900 border-zinc-800 text-zinc-400 hover:text-white'
+              }`}
+              title={isVoiceActive && !isMuted ? 'Mute Mic' : 'Turn on Mic to talk'}
+            >
+              {isVoiceActive && !isMuted ? (
+                <Mic className="w-4 h-4 text-emerald-400 animate-pulse" />
+              ) : (
+                <MicOff className="w-4 h-4 text-rose-400" />
+              )}
+            </button>
+          )}
+
+          {/* Chat Drawer Toggle */}
+          <button
+            onClick={onOpenChat}
+            className="p-2 bg-zinc-900 hover:bg-zinc-800 text-zinc-300 rounded-xl border border-zinc-800 transition relative"
+            title="Chat & Reactions"
+          >
+            <MessageSquare className="w-4 h-4 text-amber-400" />
+            {unreadChatCount > 0 && (
+              <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-rose-500 rounded-full border border-zinc-950" />
+            )}
           </button>
-          <button onClick={() => setShowHistory(true)} className="p-2 bg-zinc-900/90 hover:bg-zinc-800 rounded-xl border border-zinc-800 transition" title="Hand History">
+
+          {/* Hand History */}
+          <button
+            onClick={() => setShowHistory(true)}
+            className="p-2 bg-zinc-900 hover:bg-zinc-800 text-zinc-300 rounded-xl border border-zinc-800 transition hidden sm:flex"
+            title="Hand History"
+          >
             <History className="w-4 h-4 text-amber-400" />
           </button>
-          <button onClick={onLeaveRoom} className="p-2 bg-zinc-900/90 hover:bg-zinc-800 text-zinc-400 hover:text-rose-400 rounded-xl border border-zinc-800 transition" title="Leave">
+
+          {/* Rules */}
+          <button
+            onClick={() => setShowRules(true)}
+            className="p-2 bg-zinc-900 hover:bg-zinc-800 text-zinc-300 rounded-xl border border-zinc-800 transition hidden xs:flex"
+            title="Rules"
+          >
+            <BookOpen className="w-4 h-4 text-zinc-300" />
+          </button>
+
+          {/* Table Settings */}
+          <button
+            onClick={() => setShowSettings(true)}
+            className="p-2 bg-zinc-900 hover:bg-zinc-800 text-zinc-300 rounded-xl border border-zinc-800 transition"
+            title="Settings"
+          >
+            <Settings className="w-4 h-4 text-zinc-300" />
+          </button>
+
+          {/* Leave Table */}
+          <button
+            onClick={onLeaveRoom}
+            className="p-2 bg-zinc-900 hover:bg-zinc-800 text-zinc-400 hover:text-rose-400 rounded-xl border border-zinc-800 transition"
+            title="Leave Table"
+          >
             <LogOut className="w-4 h-4" />
           </button>
         </div>
-      </div>
+      </header>
 
-      {/* ══ TABLE ARENA ══ */}
-      <div className="flex-1 flex items-center justify-center px-2 min-h-0">
-        {/*
-          Outer leather rail.
-          Uses aspect-ratio 16/9 and clamps height so the table never overflows.
-          Player pods for OPPONENTS are absolutely positioned on the felt.
-        */}
+      {/* ══ TABLE ARENA (Felt, Racetrack, Players, Pot, Community Cards) ══ */}
+      <main className="flex-1 flex items-center justify-center p-2 min-h-0 relative">
+        {/* Outer Oval Leather Rail matching reference Screen 5 & 6 */}
         <div
           className="poker-table-outer-rail relative w-full"
           style={{
@@ -135,19 +213,19 @@ export const PokerTable: React.FC<PokerTableProps> = ({
             maxHeight: 'calc(100dvh - 210px)',
           }}
         >
-          {/* Woven felt surface */}
+          {/* Inner Woven Green Felt Surface */}
           <div className="poker-felt-surface w-full h-full relative flex flex-col items-center justify-center">
             {/* Racetrack betting line */}
             <div className="poker-betting-line" />
 
-            {/* Watermark */}
-            <div className="absolute inset-0 flex items-center justify-center pointer-events-none select-none opacity-[0.035]">
-              <span className="font-serif text-amber-100 font-black tracking-[0.3em] text-2xl sm:text-4xl md:text-6xl whitespace-nowrap">
-                ROYAL CLUB
+            {/* PokerCircle Watermark in Felt Center */}
+            <div className="absolute inset-0 flex items-center justify-center pointer-events-none select-none opacity-[0.04]">
+              <span className="font-serif text-amber-100 font-black tracking-[0.25em] text-2xl sm:text-4xl md:text-5xl whitespace-nowrap">
+                POKER CIRCLE
               </span>
             </div>
 
-            {/* ── Opponents positioned on the oval rim ── */}
+            {/* ── Opponent Player Pods on Table Rim ── */}
             {opponents.map((player) => (
               <div key={player.id} style={getOpponentStyle(player.seatIndex)}>
                 <PlayerSeat
@@ -158,52 +236,59 @@ export const PokerTable: React.FC<PokerTableProps> = ({
                   bigBlindSeat={gameState.bigBlindSeat}
                   turnDuration={gameState.turnDuration}
                   compact={true}
+                  isSpeaking={!!speakingPeers[player.id]}
                 />
               </div>
             ))}
 
-            {/* ── CENTER ZONE: Pot + Community Cards (clean, never overlapped) ── */}
-            <div className="relative z-20 flex flex-col items-center gap-2 px-4">
-              {/* Pot */}
-              <div className="flex items-center gap-1.5 bg-black/80 backdrop-blur-md px-4 py-1.5 rounded-full border border-amber-500/40 shadow-xl">
-                <span className="text-[10px] sm:text-xs uppercase tracking-widest text-amber-400 font-mono font-black">POT</span>
+            {/* ── Center Zone: Pot + Community Cards + Phase ── */}
+            <div className="relative z-20 flex flex-col items-center gap-2 px-3">
+              {/* Main Pot Chip Badge */}
+              <div className="flex items-center gap-1.5 bg-black/85 backdrop-blur-md px-3.5 py-1.5 rounded-full border border-amber-500/40 shadow-xl">
+                <span className="text-[10px] sm:text-xs uppercase tracking-widest text-amber-400 font-mono font-black">
+                  POT
+                </span>
                 <span className="text-[10px] text-amber-500/60 font-mono">|</span>
                 <span className="text-sm sm:text-base font-black text-amber-200 font-mono">
                   {formatRupee(gameState.pot)}
                 </span>
               </div>
 
-              {/* Side pots */}
+              {/* Side Pots if any */}
               {gameState.sidePots && gameState.sidePots.length > 1 && (
                 <div className="flex items-center gap-1.5 flex-wrap justify-center">
                   {gameState.sidePots.map((sp, idx) => (
-                    <span key={idx} className="text-[9px] sm:text-[10px] font-mono px-2 py-0.5 rounded-full bg-black/70 border border-zinc-700 text-amber-300">
+                    <span
+                      key={idx}
+                      className="text-[9px] font-mono px-2 py-0.5 rounded-full bg-black/70 border border-zinc-700 text-amber-300"
+                    >
                       {idx === 0 ? 'MAIN' : `SIDE ${idx}`}: {formatRupee(sp.amount)}
                     </span>
                   ))}
                 </div>
               )}
 
-              {/* Community Cards */}
+              {/* 5 Community Cards */}
               <CommunityCards cards={gameState.communityCards} phase={gameState.phase} />
 
-              {/* Phase badge */}
-              <div className="px-3 py-0.5 bg-black/60 rounded-full border border-emerald-500/25 text-[9px] sm:text-[10px] font-mono uppercase tracking-widest text-emerald-400/80">
+              {/* Phase Badge */}
+              <div className="px-2.5 py-0.5 bg-black/60 rounded-full border border-emerald-500/30 text-[9px] sm:text-[10px] font-mono uppercase tracking-widest text-emerald-400/90">
                 {gameState.phase.replace(/_/g, ' ')}
               </div>
             </div>
           </div>
         </div>
-      </div>
+      </main>
 
-      {/* ══ BOTTOM ZONE: My Seat + Hole Cards + Action Bar ══ */}
-      <div
-        className="flex-shrink-0 flex flex-col items-center z-30"
-        style={{ paddingBottom: 'max(12px, env(safe-area-inset-bottom, 12px))' }}
+      {/* ══ BOTTOM ZONE: My Seat Pod + Hole Cards + Action Bar (Pinned cleanly) ══ */}
+      <footer
+        className="flex-shrink-0 flex flex-col items-center z-30 px-2"
+        style={{ paddingBottom: 'max(10px, env(safe-area-inset-bottom, 10px))' }}
       >
-        {/* My seat pod — shown inline above cards */}
-        {me && (
-          <div className="mb-1">
+        {/* Row with Player Pod, Turn Countdown & Hole Cards */}
+        <div className="flex items-center justify-center gap-3 mb-2 flex-wrap">
+          {/* My Seat Pod */}
+          {me && (
             <PlayerSeat
               player={me}
               isMe={true}
@@ -212,21 +297,37 @@ export const PokerTable: React.FC<PokerTableProps> = ({
               bigBlindSeat={gameState.bigBlindSeat}
               turnDuration={gameState.turnDuration}
               compact={false}
+              isSpeaking={isVoiceActive && !isMuted}
             />
-          </div>
-        )}
+          )}
 
-        {/* Hole cards */}
-        {me && me.holeCards && me.holeCards.length > 0 && !me.hasFolded && (
-          <div className="flex items-center gap-2.5 mb-2">
-            {me.holeCards.map((c, idx) => (
-              <CardView key={idx} card={c} size="lg" />
-            ))}
-          </div>
-        )}
+          {/* Turn Countdown Badge (Screen 6 reference) */}
+          {isMyTurn && secondsRemaining !== null && (
+            <div className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-500/20 border border-amber-500/50 rounded-2xl animate-pulse">
+              <Clock className="w-4 h-4 text-amber-400" />
+              <div className="text-center">
+                <div className="text-[9px] uppercase tracking-wider font-bold text-amber-400 leading-none">
+                  Your Turn
+                </div>
+                <div className="text-xs font-mono font-black text-white leading-tight">
+                  00:{secondsRemaining < 10 ? `0${secondsRemaining}` : secondsRemaining}
+                </div>
+              </div>
+            </div>
+          )}
 
-        {/* Action bar */}
-        <div className="w-full max-w-xl px-2">
+          {/* Hole Cards */}
+          {me && me.holeCards && me.holeCards.length > 0 && !me.hasFolded && (
+            <div className="flex items-center gap-2">
+              {me.holeCards.map((c, idx) => (
+                <CardView key={idx} card={c} size="lg" />
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Action Bar (Fold, Check, Call, Raise) */}
+        <div className="w-full max-w-xl">
           <ActionBar
             isMyTurn={isMyTurn}
             legalActions={gameState.legalActions}
@@ -236,9 +337,9 @@ export const PokerTable: React.FC<PokerTableProps> = ({
             onAction={onAction}
           />
         </div>
-      </div>
+      </footer>
 
-      {/* ══ SHOWDOWN ══ */}
+      {/* ══ SHOWDOWN BANNER ══ */}
       {gameState.lastHandResult && gameState.phase === 'HAND_COMPLETE' && (
         <ShowdownBanner
           result={gameState.lastHandResult}
@@ -247,11 +348,22 @@ export const PokerTable: React.FC<PokerTableProps> = ({
         />
       )}
 
-      {/* ══ HAND HISTORY MODAL ══ */}
+      {/* ══ MODALS: Hand History, Rules, Table Settings ══ */}
       {showHistory && (
         <HandHistoryModal
           roomCode={roomState.code}
           onClose={() => setShowHistory(false)}
+        />
+      )}
+
+      {showRules && <RulesModal onClose={() => setShowRules(false)} />}
+
+      {showSettings && (
+        <TableSettingsModal
+          isVoiceActive={isVoiceActive}
+          isMuted={isMuted}
+          onToggleMute={onToggleMute || (() => {})}
+          onClose={() => setShowSettings(false)}
         />
       )}
     </div>

@@ -1,170 +1,166 @@
 import React, { useState } from 'react';
-import { Shield, Users, ArrowRight, Play } from 'lucide-react';
+import { Shield, Zap, Coins, Users, Play, BookOpen, HelpCircle } from 'lucide-react';
 import { VIRTUAL_CURRENCY_DISCLAIMER } from '@poker/shared';
+import { RulesModal } from '../components/RulesModal.js';
 
 interface LandingPageProps {
   initialRoomCode?: string;
   onOpenCreate: () => void;
+  onOpenJoin: () => void;
   onJoinRoom: (code: string, name: string) => void;
 }
 
 export const LandingPage: React.FC<LandingPageProps> = ({
   initialRoomCode = '',
   onOpenCreate,
+  onOpenJoin,
   onJoinRoom,
 }) => {
-  const [roomCode, setRoomCode] = useState(initialRoomCode);
-  const [playerName, setPlayerName] = useState(
-    () => localStorage.getItem('poker_player_name') || ''
-  );
-
-  const handleJoinSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!roomCode.trim() || !playerName.trim()) return;
-    onJoinRoom(roomCode.trim().toUpperCase(), playerName.trim());
-  };
+  const [showRules, setShowRules] = useState(false);
+  const [showFaq, setShowFaq] = useState(false);
 
   return (
-    <div className="min-h-screen flex flex-col justify-between bg-[#07090e] text-zinc-100 selection:bg-amber-500 selection:text-zinc-950">
-      {/* Club Top Navigation Bar */}
-      <header className="w-full max-w-6xl mx-auto px-6 py-6 flex items-center justify-between border-b border-zinc-800/60">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-amber-600 via-amber-700 to-yellow-600 p-0.5 shadow-lg flex items-center justify-center">
+    <div className="min-h-screen flex flex-col justify-between bg-[#07090e] text-zinc-100 selection:bg-amber-500 selection:text-zinc-950 relative overflow-hidden">
+      {/* Background radial glow */}
+      <div className="absolute top-1/3 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-amber-500/5 rounded-full blur-3xl pointer-events-none" />
+
+      {/* ── Top Nav ── */}
+      <header className="w-full max-w-6xl mx-auto px-6 py-5 flex items-center justify-between border-b border-zinc-800/60 relative z-10">
+        {/* Logo */}
+        <div className="flex items-center gap-2.5">
+          <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-amber-600 via-amber-700 to-yellow-500 p-0.5 shadow-lg flex items-center justify-center">
             <span className="text-zinc-950 font-black text-xl">♠</span>
           </div>
-          <div>
-            <div className="font-serif font-black text-xl tracking-tight text-white flex items-center gap-1.5">
-              <span>ROYAL</span>
-              <span className="text-amber-400">POKER CLUB</span>
-            </div>
-            <div className="text-[10px] text-zinc-400 font-mono tracking-wider uppercase">
-              Private Friends Tables
-            </div>
-          </div>
+          <span className="font-bold text-lg tracking-tight text-white">
+            Poker<span className="text-amber-400">Circle</span>
+          </span>
         </div>
 
-        <button
-          onClick={onOpenCreate}
-          className="px-5 py-2.5 bg-gradient-to-r from-amber-500 via-amber-400 to-yellow-500 hover:from-amber-400 hover:to-yellow-400 text-zinc-950 font-black text-xs uppercase tracking-wider rounded-xl shadow-lg transition active:scale-95 flex items-center gap-2"
-        >
-          <Play className="w-3.5 h-3.5 fill-zinc-950" />
-          Host Table
-        </button>
+        {/* Center Nav Links */}
+        <nav className="hidden md:flex items-center gap-7 text-xs font-medium text-zinc-400">
+          <button onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })} className="hover:text-amber-300 transition">
+            Home
+          </button>
+          <button onClick={() => setShowRules(true)} className="hover:text-amber-300 transition flex items-center gap-1">
+            Rules
+          </button>
+          <button onClick={() => setShowFaq(true)} className="hover:text-amber-300 transition">
+            How It Works & FAQs
+          </button>
+        </nav>
+
+        {/* Action Button */}
+        <div className="flex items-center gap-2">
+          <button
+            onClick={onOpenJoin}
+            className="px-4 py-2 bg-zinc-900 hover:bg-zinc-800 text-zinc-300 font-bold text-xs uppercase tracking-wider rounded-xl border border-zinc-800 transition active:scale-95"
+          >
+            Join Table
+          </button>
+        </div>
       </header>
 
-      {/* Main Club Lounge Entrance */}
-      <main className="flex-1 flex flex-col items-center justify-center px-4 py-12 max-w-4xl mx-auto w-full text-center">
-        {/* Table Type Badge */}
-        <div className="inline-flex items-center gap-2 px-4 py-1 rounded-full bg-amber-500/10 border border-amber-500/30 text-amber-300 font-mono text-xs font-bold mb-5 uppercase tracking-wider">
-          <span>No-Limit Texas Hold'em • Virtual ₹ Chips</span>
-        </div>
-
-        <h1 className="text-4xl sm:text-6xl font-serif font-black tracking-tight text-white max-w-3xl leading-tight">
-          THE PRIVATE <span className="text-amber-400">POKER ROOM</span> FOR YOU & YOUR FRIENDS
+      {/* ── Main Hero Section ── */}
+      <main className="flex-1 flex flex-col items-center justify-center px-4 py-16 max-w-4xl mx-auto w-full text-center relative z-10">
+        {/* Hero Title */}
+        <h1 className="text-5xl sm:text-7xl font-serif font-black tracking-tight text-white max-w-2xl leading-[1.08]">
+          Your Table.<br />
+          <span className="text-amber-400">Your Friends.</span><br />
+          Your Game.
         </h1>
 
-        <p className="mt-4 text-sm sm:text-base text-zinc-400 max-w-xl font-medium">
-          Create a private table with custom blinds and starting chips, share the invite code, and play seamlessly on any device.
+        {/* Subtitle */}
+        <p className="mt-6 text-sm sm:text-base text-zinc-400 max-w-lg font-medium leading-relaxed">
+          Create a private poker table and invite your friends. No downloads. Just deal.
         </p>
 
-        {/* Interactive Quick Join & Host Hub */}
-        <div className="mt-10 w-full max-w-lg bg-zinc-900/90 backdrop-blur-xl border border-zinc-800 rounded-3xl p-6 sm:p-8 shadow-2xl">
-          <h2 className="text-sm font-bold uppercase tracking-wider text-amber-400 text-left mb-4 flex items-center gap-2">
-            <Users className="w-4 h-4" />
-            Join an Existing Table
-          </h2>
-
-          <form onSubmit={handleJoinSubmit} className="flex flex-col gap-3">
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div>
-                <label className="block text-left text-[11px] font-bold uppercase text-zinc-400 mb-1">
-                  Table Code
-                </label>
-                <input
-                  type="text"
-                  required
-                  maxLength={8}
-                  placeholder="e.g. H7K9Q"
-                  value={roomCode}
-                  onChange={(e) => setRoomCode(e.target.value.toUpperCase())}
-                  className="w-full bg-zinc-950 border border-zinc-700 text-amber-300 font-mono font-bold text-center uppercase tracking-widest px-3 py-2.5 rounded-xl text-sm focus:outline-none focus:border-amber-400"
-                />
-              </div>
-
-              <div>
-                <label className="block text-left text-[11px] font-bold uppercase text-zinc-400 mb-1">
-                  Your Nickname
-                </label>
-                <input
-                  type="text"
-                  required
-                  maxLength={16}
-                  placeholder="e.g. Rahul"
-                  value={playerName}
-                  onChange={(e) => setPlayerName(e.target.value)}
-                  className="w-full bg-zinc-950 border border-zinc-700 text-white font-medium px-3 py-2.5 rounded-xl text-sm focus:outline-none focus:border-amber-400"
-                />
-              </div>
-            </div>
-
-            <button
-              type="submit"
-              disabled={!roomCode.trim() || !playerName.trim()}
-              className="w-full py-3 mt-1 bg-amber-500 hover:bg-amber-400 disabled:opacity-30 disabled:cursor-not-allowed text-zinc-950 font-black text-xs uppercase tracking-wider rounded-xl shadow-lg transition active:scale-95 flex items-center justify-center gap-1.5"
-            >
-              Enter Table
-              <ArrowRight className="w-4 h-4" />
-            </button>
-          </form>
-
-          {/* Divider */}
-          <div className="relative flex py-4 items-center">
-            <div className="flex-grow border-t border-zinc-800"></div>
-            <span className="flex-shrink mx-3 text-zinc-500 text-[11px] uppercase font-mono">OR</span>
-            <div className="flex-grow border-t border-zinc-800"></div>
-          </div>
-
+        {/* CTA Buttons */}
+        <div className="mt-8 flex flex-col sm:flex-row items-center gap-3.5 w-full sm:w-auto">
           <button
             onClick={onOpenCreate}
-            className="w-full py-3 bg-zinc-950 hover:bg-zinc-800 text-white font-bold text-xs uppercase tracking-wider rounded-xl border border-zinc-700 transition active:scale-95 flex items-center justify-center gap-2"
+            className="w-full sm:w-auto px-8 py-3.5 bg-gradient-to-r from-amber-500 via-amber-400 to-yellow-500 hover:from-amber-400 hover:to-yellow-400 text-zinc-950 font-black text-xs uppercase tracking-wider rounded-full shadow-2xl transition-all duration-200 transform hover:scale-105 active:scale-95 flex items-center justify-center gap-2"
           >
-            Create New Private Table
+            <Play className="w-4 h-4 fill-zinc-950" />
+            Create Table
+          </button>
+
+          <button
+            onClick={onOpenJoin}
+            className="w-full sm:w-auto px-8 py-3.5 bg-zinc-900/80 hover:bg-zinc-800/90 text-white font-bold text-xs uppercase tracking-wider rounded-full border border-zinc-700/80 backdrop-blur-md transition-all duration-200 hover:border-amber-400 active:scale-95 flex items-center justify-center gap-2"
+          >
+            <Users className="w-4 h-4 text-amber-400" />
+            Join Table
           </button>
         </div>
 
-        {/* Live Table Stakes Bar */}
-        <div className="mt-12 grid grid-cols-2 sm:grid-cols-4 gap-3 w-full max-w-2xl text-center font-mono">
-          <div className="p-3 rounded-xl bg-zinc-900/60 border border-zinc-800">
-            <div className="text-[10px] text-zinc-500 uppercase">Micro Stakes</div>
-            <div className="text-xs font-bold text-amber-300 mt-0.5">₹5 / ₹10</div>
+        {/* 3 Trust / Feature Badges matching reference board */}
+        <div className="mt-16 grid grid-cols-1 sm:grid-cols-3 gap-4 w-full max-w-2xl">
+          <div className="flex items-center gap-3 p-3.5 rounded-2xl bg-zinc-900/60 border border-zinc-800/80 backdrop-blur-sm text-left">
+            <div className="w-9 h-9 rounded-xl bg-amber-500/15 flex items-center justify-center shrink-0">
+              <Shield className="w-4 h-4 text-amber-400" />
+            </div>
+            <div>
+              <div className="text-xs font-bold text-zinc-200">Private Rooms</div>
+              <div className="text-[10px] text-zinc-500">Invite-only private tables</div>
+            </div>
           </div>
-          <div className="p-3 rounded-xl bg-zinc-900/60 border border-zinc-800">
-            <div className="text-[10px] text-zinc-500 uppercase">Standard</div>
-            <div className="text-xs font-bold text-amber-300 mt-0.5">₹25 / ₹50</div>
+
+          <div className="flex items-center gap-3 p-3.5 rounded-2xl bg-zinc-900/60 border border-zinc-800/80 backdrop-blur-sm text-left">
+            <div className="w-9 h-9 rounded-xl bg-amber-500/15 flex items-center justify-center shrink-0">
+              <Zap className="w-4 h-4 text-amber-400" />
+            </div>
+            <div>
+              <div className="text-xs font-bold text-zinc-200">Real-time Play</div>
+              <div className="text-[10px] text-zinc-500">Live WebRTC audio & smooth sync</div>
+            </div>
           </div>
-          <div className="p-3 rounded-xl bg-zinc-900/60 border border-zinc-800">
-            <div className="text-[10px] text-zinc-500 uppercase">Deep Stack</div>
-            <div className="text-xs font-bold text-amber-300 mt-0.5">₹50 / ₹100</div>
-          </div>
-          <div className="p-3 rounded-xl bg-zinc-900/60 border border-zinc-800">
-            <div className="text-[10px] text-zinc-500 uppercase">High Roller</div>
-            <div className="text-xs font-bold text-amber-300 mt-0.5">₹250 / ₹500+</div>
+
+          <div className="flex items-center gap-3 p-3.5 rounded-2xl bg-zinc-900/60 border border-zinc-800/80 backdrop-blur-sm text-left">
+            <div className="w-9 h-9 rounded-xl bg-amber-500/15 flex items-center justify-center shrink-0">
+              <Coins className="w-4 h-4 text-amber-400" />
+            </div>
+            <div>
+              <div className="text-xs font-bold text-zinc-200">Virtual ₹ Chips</div>
+              <div className="text-[10px] text-zinc-500">No real money, purely for fun</div>
+            </div>
           </div>
         </div>
       </main>
 
-      {/* Footer & Responsible Virtual Currency Notice */}
-      <footer className="w-full border-t border-zinc-800/80 py-5 px-4 text-center">
-        <div className="max-w-3xl mx-auto flex flex-col items-center gap-2">
-          <div className="flex items-center gap-2 text-zinc-400 text-xs font-mono">
-            <Shield className="w-3.5 h-3.5 text-amber-400 shrink-0" />
-            <span>{VIRTUAL_CURRENCY_DISCLAIMER}</span>
-          </div>
-          <div className="text-[11px] text-zinc-600 font-mono">
-            Royal Poker Club • Private Friends Texas Hold'em • Virtual Chips Only
-          </div>
+      {/* ── Footer ── */}
+      <footer className="w-full border-t border-zinc-900 py-4 px-6 relative z-10 flex flex-col sm:flex-row items-center justify-between gap-3 text-[11px] font-mono text-zinc-600 max-w-6xl mx-auto">
+        <div className="flex items-center gap-1.5 text-zinc-400">
+          <span className="text-amber-400">♠</span>
+          <span>PokerCircle</span>
+        </div>
+        <div className="text-center sm:text-right">
+          {VIRTUAL_CURRENCY_DISCLAIMER}
         </div>
       </footer>
+
+      {/* Rules Modal */}
+      {showRules && <RulesModal onClose={() => setShowRules(false)} />}
+
+      {/* FAQs Modal */}
+      {showFaq && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md p-4 animate-fade-in overflow-y-auto">
+          <div className="bg-zinc-950 border border-zinc-800 rounded-3xl p-6 sm:p-7 max-w-md w-full shadow-2xl relative my-auto space-y-4">
+            <div className="flex items-center justify-between border-b border-zinc-800 pb-3">
+              <h3 className="font-bold text-white text-base">How It Works</h3>
+              <button onClick={() => setShowFaq(false)} className="text-zinc-400 hover:text-white">✕</button>
+            </div>
+            <div className="space-y-3 text-xs text-zinc-300">
+              <p><strong>1. Host a Table:</strong> Tap Create Table, set your virtual starting chips and blinds, and share your 6-letter room code or link.</p>
+              <p><strong>2. Invite Friends:</strong> Friends tap Join Table, type the code, and take a seat.</p>
+              <p><strong>3. Talk & Play:</strong> Tap the Mic button to talk in real-time while playing No-Limit Texas Hold'em!</p>
+              <p><strong>4. Virtual Currency:</strong> All ₹ values are virtual game credits with zero real-world cash value.</p>
+            </div>
+            <button onClick={() => setShowFaq(false)} className="w-full py-2 bg-zinc-900 text-white rounded-xl text-xs font-bold">
+              Got it
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

@@ -43,6 +43,7 @@ export interface RoomConfig {
   allowSpectators: boolean;
   chatEnabled: boolean;
   reactionsEnabled: boolean;
+  voiceEnabled?: boolean;
 }
 
 export const DEFAULT_ROOM_CONFIG: RoomConfig = {
@@ -54,6 +55,7 @@ export const DEFAULT_ROOM_CONFIG: RoomConfig = {
   allowSpectators: true,
   chatEnabled: true,
   reactionsEnabled: true,
+  voiceEnabled: true,
 };
 
 export interface PlayerPublicState {

@@ -324,7 +324,76 @@ export function registerSocketHandlers(io: Server): void {
       }
     });
 
-    // 10. Disconnect Handler
+    // 10. Voice Signaling (WebRTC Mesh Audio)
+    socket.on('voice:join', (payload: { roomCode: string }) => {
+      const roomCode = payload?.roomCode?.toUpperCase();
+      if (!roomCode) return;
+      const room = roomManager.getRoomByCode(roomCode);
+      if (!room) return;
+
+      // Join voice room
+      socket.join(`voice:${roomCode}`);
+
+      // Notify others in room
+      socket.to(`voice:${roomCode}`).emit('voice:peer-joined', {
+        playerId: sessionData.player.playerId,
+        socketId: socket.id,
+      });
+
+      // Send existing peers in this voice room to the joiner
+      const voiceRoom = io.sockets.adapter.rooms.get(`voice:${roomCode}`);
+      const peers: { playerId: string; socketId: string }[] = [];
+      if (voiceRoom) {
+        for (const peerSocketId of voiceRoom) {
+          if (peerSocketId !== socket.id) {
+            const peerSocket = io.sockets.sockets.get(peerSocketId);
+            const peerPlayerId = (peerSocket as any)?.__playerId || peerSocketId;
+            peers.push({ playerId: peerPlayerId, socketId: peerSocketId });
+          }
+        }
+      }
+      (socket as any).__playerId = sessionData.player.playerId;
+      socket.emit('voice:peers', { peers });
+    });
+
+    socket.on('voice:signal', (payload: { toSocketId: string; signal: any }) => {
+      if (!payload?.toSocketId || !payload.signal) return;
+      io.to(payload.toSocketId).emit('voice:signal', {
+        fromPlayerId: sessionData.player.playerId,
+        fromSocketId: socket.id,
+        signal: payload.signal,
+      });
+    });
+
+    socket.on('voice:speaking', (payload: { roomCode: string; isSpeaking: boolean }) => {
+      const roomCode = payload?.roomCode?.toUpperCase();
+      if (!roomCode) return;
+      io.to(`voice:${roomCode}`).emit('voice:player-speaking', {
+        playerId: sessionData.player.playerId,
+        isSpeaking: !!payload.isSpeaking,
+      });
+    });
+
+    socket.on('voice:state', (payload: { roomCode: string; isMuted: boolean }) => {
+      const roomCode = payload?.roomCode?.toUpperCase();
+      if (!roomCode) return;
+      io.to(`voice:${roomCode}`).emit('voice:player-state', {
+        playerId: sessionData.player.playerId,
+        isMuted: !!payload.isMuted,
+      });
+    });
+
+    socket.on('voice:leave', (payload: { roomCode: string }) => {
+      const roomCode = payload?.roomCode?.toUpperCase();
+      if (!roomCode) return;
+      socket.leave(`voice:${roomCode}`);
+      socket.to(`voice:${roomCode}`).emit('voice:peer-left', {
+        playerId: sessionData.player.playerId,
+        socketId: socket.id,
+      });
+    });
+
+    // 11. Disconnect Handler
     socket.on('disconnect', () => {
       if (sessionData.currentRoomCode) {
         const room = roomManager.getRoomByCode(sessionData.currentRoomCode);
@@ -333,6 +402,11 @@ export function registerSocketHandlers(io: Server): void {
           broadcastRoomState(room);
           broadcastGameState(room);
         }
+        // Also notify voice room on disconnect
+        socket.to(`voice:${sessionData.currentRoomCode}`).emit('voice:peer-left', {
+          playerId: sessionData.player.playerId,
+          socketId: socket.id,
+        });
       }
     });
   });

@@ -10,6 +10,7 @@ export const RoomConfigSchema = z.object({
   allowSpectators: z.boolean().default(true),
   chatEnabled: z.boolean().default(true),
   reactionsEnabled: z.boolean().default(true),
+  voiceEnabled: z.boolean().default(true),
 });
 
 export const CreateRoomSchema = z.object({

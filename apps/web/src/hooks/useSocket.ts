@@ -228,5 +228,6 @@ export function useSocket() {
     sendChat,
     sendReaction,
     rematch,
+    socket: socketRef.current,
   };
 }
