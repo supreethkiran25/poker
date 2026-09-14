@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import type { ActionType, LegalAction } from '@poker/shared';
 import { formatRupee } from '@poker/shared';
-import { ChevronUp, ChevronDown } from 'lucide-react';
+import { ChevronUp, ChevronDown, Clock } from 'lucide-react';
 
 interface ActionBarProps {
   isMyTurn: boolean;
@@ -9,6 +9,8 @@ interface ActionBarProps {
   pot: number;
   currentBet: number;
   myChips: number;
+  secondsRemaining?: number | null;
+  turnDuration?: number;
   onAction: (type: ActionType, amount?: number) => void;
 }
 
@@ -18,6 +20,8 @@ export const ActionBar: React.FC<ActionBarProps> = ({
   pot,
   currentBet,
   myChips,
+  secondsRemaining = null,
+  turnDuration = 30,
   onAction,
 }) => {
   const raiseAction = legalActions.find((a) => a.type === 'raise' || a.type === 'bet');
@@ -51,7 +55,50 @@ export const ActionBar: React.FC<ActionBarProps> = ({
   const doublePot = Math.min(maxRaise, Math.max(minRaise, currentBet + pot * 2));
 
   return (
-    <div className="flex flex-col items-center gap-2 bg-zinc-950/95 backdrop-blur-xl p-2 sm:p-3 rounded-2xl border border-zinc-800 shadow-2xl w-full select-none">
+    <div className="relative flex flex-col items-center gap-2 bg-zinc-950/95 backdrop-blur-xl p-2 sm:p-3 rounded-2xl border border-zinc-800 shadow-2xl w-full select-none overflow-hidden">
+      {/* ── Top edge animated turn countdown progress bar ── */}
+      {secondsRemaining !== null && (
+        <div className="absolute top-0 left-0 right-0 h-1 bg-zinc-800/80 overflow-hidden">
+          <div
+            className={`h-full transition-all duration-300 ${
+              secondsRemaining <= 5
+                ? 'bg-rose-500 animate-pulse'
+                : secondsRemaining <= 10
+                ? 'bg-amber-400'
+                : 'bg-emerald-400'
+            }`}
+            style={{
+              width: `${Math.max(
+                0,
+                Math.min(100, (secondsRemaining / (turnDuration || 30)) * 100)
+              )}%`,
+            }}
+          />
+        </div>
+      )}
+
+      {/* ── Turn Decision Badge ── */}
+      {secondsRemaining !== null && (
+        <div className="w-full flex items-center justify-between px-1 text-[11px] font-mono pt-0.5">
+          <div className="flex items-center gap-1.5 text-zinc-400">
+            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
+            <span className="font-bold text-zinc-200">YOUR TURN</span>
+          </div>
+
+          <div
+            className={`flex items-center gap-1 px-2.5 py-0.5 rounded-full border transition-all ${
+              secondsRemaining <= 5
+                ? 'bg-rose-500/30 border-rose-500 text-rose-300 animate-pulse font-black'
+                : secondsRemaining <= 10
+                ? 'bg-amber-500/20 border-amber-500/60 text-amber-300 font-bold'
+                : 'bg-zinc-900 border-zinc-700 text-zinc-300 font-bold'
+            }`}
+          >
+            <Clock className={`w-3 h-3 ${secondsRemaining <= 5 ? 'animate-spin text-rose-400' : 'text-amber-400'}`} />
+            <span>00:{secondsRemaining < 10 ? `0${secondsRemaining}` : secondsRemaining}</span>
+          </div>
+        </div>
+      )}
       {/* ── Expandable Raise Popover / Slider ── */}
       {raiseAction && showRaiseSlider && (
         <div className="w-full flex flex-col gap-2 p-2.5 rounded-xl bg-zinc-900/90 border border-amber-500/30 animate-fade-in">

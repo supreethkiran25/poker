@@ -269,9 +269,9 @@ export const PokerTable: React.FC<PokerTableProps> = ({
                 }
               : {
                   width: '100%',
-                  aspectRatio: '16 / 9',
-                  maxWidth: 'min(100%, calc((100dvh - 200px) * 16 / 9))',
-                  maxHeight: 'calc(100dvh - 200px)',
+                  aspectRatio: '1.72 / 1',
+                  maxWidth: 'min(96vw, calc((100dvh - 180px) * 1.72))',
+                  maxHeight: 'calc(100dvh - 180px)',
                   borderRadius: '9999px',
                 }
           }
@@ -303,6 +303,7 @@ export const PokerTable: React.FC<PokerTableProps> = ({
                   dealerSeat={gameState.dealerSeat}
                   smallBlindSeat={gameState.smallBlindSeat}
                   bigBlindSeat={gameState.bigBlindSeat}
+                  turnExpiresAt={player.isTurn ? gameState.turnExpiresAt : null}
                   turnDuration={gameState.turnDuration}
                   compact={true}
                   isSpeaking={!!speakingPeers[player.id]}
@@ -310,21 +311,22 @@ export const PokerTable: React.FC<PokerTableProps> = ({
               </div>
             ))}
 
-            {/* ── Table Center: Pot Badge ── */}
+            {/* ── Table Center: Pot + Community Cards + Phase (Unified Single Column) ── */}
             <div
-              className="absolute z-20 flex flex-col items-center gap-1.5 pointer-events-none"
+              className="absolute z-20 flex flex-col items-center gap-1.5 sm:gap-2 pointer-events-auto"
               style={{
                 left: '50%',
-                top: isMobilePortrait ? '34%' : '38%',
+                top: isMobilePortrait ? '40%' : '37%',
                 transform: 'translate(-50%, -50%)',
               }}
             >
-              <div className="flex items-center gap-1.5 bg-black/85 backdrop-blur-md px-3.5 py-1.5 rounded-full border border-amber-500/40 shadow-xl pointer-events-auto">
+              {/* Pot Badge */}
+              <div className="flex items-center gap-1.5 bg-black/85 backdrop-blur-md px-3.5 py-1 rounded-full border border-amber-500/40 shadow-xl pointer-events-auto">
                 <span className="text-[10px] sm:text-xs uppercase tracking-widest text-amber-400 font-mono font-black">
                   POT
                 </span>
                 <span className="text-[10px] text-amber-500/60 font-mono">|</span>
-                <span className="text-sm sm:text-base font-black text-amber-200 font-mono">
+                <span className="text-xs sm:text-sm font-black text-amber-200 font-mono">
                   {formatRupee(gameState.pot)}
                 </span>
               </div>
@@ -342,21 +344,16 @@ export const PokerTable: React.FC<PokerTableProps> = ({
                   ))}
                 </div>
               )}
-            </div>
 
-            {/* ── Table Center: 5 Community Cards ── */}
-            <div
-              className="absolute z-20 flex flex-col items-center gap-1.5 pointer-events-auto"
-              style={{
-                left: '50%',
-                top: isMobilePortrait ? '50%' : '52%',
-                transform: 'translate(-50%, -50%)',
-              }}
-            >
+              {/* 5 Community Cards */}
               <CommunityCards cards={gameState.communityCards} phase={gameState.phase} />
-              <div className="px-2.5 py-0.5 bg-black/60 rounded-full border border-emerald-500/30 text-[9px] sm:text-[10px] font-mono uppercase tracking-widest text-emerald-400/90">
-                {gameState.phase.replace(/_/g, ' ')}
-              </div>
+
+              {/* Phase Badge */}
+              {gameState.phase !== 'WAITING_FOR_PLAYERS' && gameState.phase !== 'STARTING' && (
+                <div className="px-2.5 py-0.5 bg-black/70 rounded-full border border-emerald-500/40 text-[9px] sm:text-[10px] font-mono uppercase tracking-widest text-emerald-400 font-bold shadow">
+                  {gameState.phase.replace(/_/g, ' ')}
+                </div>
+              )}
             </div>
 
             {/* ── Player's Hole Cards on the Felt (in front of seat) ── */}
@@ -365,7 +362,7 @@ export const PokerTable: React.FC<PokerTableProps> = ({
                 className="absolute z-20 flex items-center -space-x-1 sm:space-x-1 pointer-events-auto"
                 style={{
                   left: '50%',
-                  top: isMobilePortrait ? '72%' : '76%',
+                  top: isMobilePortrait ? '69%' : '66%',
                   transform: 'translate(-50%, -50%)',
                 }}
               >
@@ -373,31 +370,12 @@ export const PokerTable: React.FC<PokerTableProps> = ({
                   <CardView
                     key={idx}
                     card={c}
-                    size={isMobilePortrait ? 'md' : 'lg'}
+                    size={isMobilePortrait ? 'sm' : 'md'}
                     dealDelayMs={idx * 140}
                     isInteractive={true}
-                    tiltDeg={idx === 0 ? -3 : 3}
+                    tiltDeg={idx === 0 ? -4 : 4}
                   />
                 ))}
-              </div>
-            )}
-
-            {/* ── Turn Countdown Timer Ring beside Hole Cards ── */}
-            {isMyTurn && secondsRemaining !== null && (
-              <div
-                className="absolute z-20 pointer-events-auto animate-pulse"
-                style={{
-                  left: isMobilePortrait ? '78%' : '66%',
-                  top: isMobilePortrait ? '72%' : '76%',
-                  transform: 'translate(-50%, -50%)',
-                }}
-              >
-                <div className="flex items-center gap-1 px-2.5 py-1 bg-amber-500/25 border border-amber-400/60 rounded-2xl shadow-xl backdrop-blur-md">
-                  <Clock className="w-3.5 h-3.5 text-amber-400" />
-                  <span className="text-[11px] font-mono font-black text-white">
-                    00:{secondsRemaining < 10 ? `0${secondsRemaining}` : secondsRemaining}
-                  </span>
-                </div>
               </div>
             )}
 
@@ -407,7 +385,7 @@ export const PokerTable: React.FC<PokerTableProps> = ({
                 className="absolute z-25 pointer-events-auto"
                 style={{
                   left: '50%',
-                  top: isMobilePortrait ? '93%' : '92%',
+                  top: isMobilePortrait ? '90%' : '88%',
                   transform: 'translate(-50%, -50%)',
                 }}
               >
@@ -417,6 +395,7 @@ export const PokerTable: React.FC<PokerTableProps> = ({
                   dealerSeat={gameState.dealerSeat}
                   smallBlindSeat={gameState.smallBlindSeat}
                   bigBlindSeat={gameState.bigBlindSeat}
+                  turnExpiresAt={isMyTurn ? gameState.turnExpiresAt : null}
                   turnDuration={gameState.turnDuration}
                   compact={false}
                   isSpeaking={isVoiceActive && !isMuted}
@@ -479,6 +458,8 @@ export const PokerTable: React.FC<PokerTableProps> = ({
               pot={gameState.pot}
               currentBet={gameState.currentBet}
               myChips={me?.chips ?? 0}
+              secondsRemaining={secondsRemaining}
+              turnDuration={gameState.turnDuration}
               onAction={onAction}
             />
           )}

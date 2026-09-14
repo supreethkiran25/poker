@@ -46,6 +46,7 @@ export class Room {
   public chatMessages: ChatMessage[] = [];
   public recentActionIds: Set<string> = new Set();
   public timerHandle: NodeJS.Timeout | null = null;
+  public turnExpiresAt: number | null = null;
   public nextHandReadyPlayers: Set<string> = new Set();
   public onStateChanged?: () => void;
 
@@ -194,7 +195,8 @@ export class Room {
     const activePlayerId = this.engine.getActivePlayerId();
     if (!activePlayerId) return;
 
-    const durationMs = this.config.turnTimerSeconds * 1000;
+    const durationMs = (this.config.turnTimerSeconds || 30) * 1000;
+    this.turnExpiresAt = Date.now() + durationMs;
     this.timerHandle = setTimeout(() => {
       this.handleTurnTimeout();
     }, durationMs);
@@ -205,6 +207,7 @@ export class Room {
       clearTimeout(this.timerHandle);
       this.timerHandle = null;
     }
+    this.turnExpiresAt = null;
   }
 
   private handleTurnTimeout(): void {
@@ -318,7 +321,13 @@ export class Room {
   }
 
   public getGamePublicState(forPlayerId: string): GamePublicState {
-    return this.engine.toPublicState(forPlayerId);
+    const state = this.engine.toPublicState(forPlayerId);
+    state.turnExpiresAt =
+      this.engine.isHandInProgress() && this.engine.getActivePlayerId()
+        ? this.turnExpiresAt
+        : null;
+    state.turnDuration = this.config.turnTimerSeconds || 30;
+    return state;
   }
 }
 

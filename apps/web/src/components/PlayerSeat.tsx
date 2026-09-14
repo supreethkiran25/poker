@@ -1,9 +1,9 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import type { PlayerPublicState } from '@poker/shared';
 import { formatRupee } from '@poker/shared';
 import { CardView } from './CardView.js';
 import { ChipStack } from './ChipStack.js';
-import { Mic, MicOff } from 'lucide-react';
+import { Mic, MicOff, Clock } from 'lucide-react';
 
 interface PlayerSeatProps {
   player: PlayerPublicState;
@@ -12,6 +12,7 @@ interface PlayerSeatProps {
   smallBlindSeat: number;
   bigBlindSeat: number;
   positionClass?: string;
+  turnExpiresAt?: number | null;
   turnDuration?: number;
   compact?: boolean;
   isSpeaking?: boolean;
@@ -24,6 +25,8 @@ export const PlayerSeat: React.FC<PlayerSeatProps> = ({
   dealerSeat,
   smallBlindSeat,
   bigBlindSeat,
+  turnExpiresAt,
+  turnDuration = 30,
   compact = false,
   isSpeaking = false,
   isMuted = false,
@@ -31,6 +34,31 @@ export const PlayerSeat: React.FC<PlayerSeatProps> = ({
   const isDealer = player.seatIndex === dealerSeat;
   const isSB = player.seatIndex === smallBlindSeat;
   const isBB = player.seatIndex === bigBlindSeat;
+
+  // Decision timer calculation
+  const [secondsRemaining, setSecondsRemaining] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (!player.isTurn || !turnExpiresAt) {
+      setSecondsRemaining(null);
+      return;
+    }
+
+    const checkTime = () => {
+      const diff = Math.max(0, Math.ceil((turnExpiresAt - Date.now()) / 1000));
+      setSecondsRemaining(diff);
+    };
+
+    checkTime();
+    const interval = setInterval(checkTime, 250);
+    return () => clearInterval(interval);
+  }, [player.isTurn, turnExpiresAt]);
+
+  const maxDuration = turnDuration || 30;
+  const progressRatio =
+    secondsRemaining !== null
+      ? Math.max(0, Math.min(1, secondsRemaining / maxDuration))
+      : 1;
 
   return (
     <div
@@ -61,11 +89,46 @@ export const PlayerSeat: React.FC<PlayerSeatProps> = ({
           maxWidth: compact ? '130px' : '170px',
         }}
       >
-        {/* Avatar with speaking wave & dealer button */}
-        <div className="relative flex-shrink-0">
+        {/* Avatar with speaking wave, dealer button, & turn countdown ring */}
+        <div className="relative flex-shrink-0 flex items-center justify-center">
           {/* Speaking glowing pulse ring */}
           {isSpeaking && (
             <span className="absolute -inset-1 rounded-full bg-emerald-500/40 animate-ping" />
+          )}
+
+          {/* Turn Countdown SVG Ring */}
+          {player.isTurn && (
+            <svg
+              className="absolute -inset-1.5 w-[calc(100%+12px)] h-[calc(100%+12px)] -rotate-90 pointer-events-none z-20"
+              viewBox="0 0 36 36"
+            >
+              <circle
+                cx="18"
+                cy="18"
+                r="15"
+                fill="none"
+                stroke="rgba(255, 255, 255, 0.12)"
+                strokeWidth="2.5"
+              />
+              <circle
+                cx="18"
+                cy="18"
+                r="15"
+                fill="none"
+                stroke={
+                  secondsRemaining !== null && secondsRemaining <= 5
+                    ? '#ef4444'
+                    : secondsRemaining !== null && secondsRemaining <= 10
+                    ? '#f59e0b'
+                    : '#10b981'
+                }
+                strokeWidth="2.5"
+                strokeDasharray={94.2}
+                strokeDashoffset={94.2 * (1 - progressRatio)}
+                strokeLinecap="round"
+                className="transition-all duration-200"
+              />
+            </svg>
           )}
 
           <div
@@ -84,13 +147,13 @@ export const PlayerSeat: React.FC<PlayerSeatProps> = ({
 
           {/* Mic icon indicator */}
           {isSpeaking && (
-            <div className="absolute -top-1 -right-1 w-3.5 h-3.5 bg-emerald-500 rounded-full flex items-center justify-center shadow">
+            <div className="absolute -top-1 -right-1 w-3.5 h-3.5 bg-emerald-500 rounded-full flex items-center justify-center shadow z-20">
               <Mic className="w-2 h-2 text-zinc-950" />
             </div>
           )}
 
           {/* Connection status */}
-          <div className="absolute -bottom-0.5 -right-0.5">
+          <div className="absolute -bottom-0.5 -right-0.5 z-20">
             {player.isConnected ? (
               <span className="flex h-2 w-2 relative">
                 <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500 border border-zinc-950" />
@@ -151,6 +214,22 @@ export const PlayerSeat: React.FC<PlayerSeatProps> = ({
             title="Big Blind"
           >
             BB
+          </div>
+        )}
+
+        {/* Turn Countdown Pill on Seat Pod */}
+        {player.isTurn && secondsRemaining !== null && (
+          <div
+            className={`absolute -bottom-2.5 left-1/2 -translate-x-1/2 z-30 px-2 py-0.5 rounded-full text-[9px] font-mono font-black flex items-center gap-1 shadow-xl border whitespace-nowrap transition-all ${
+              secondsRemaining <= 5
+                ? 'bg-rose-600 border-rose-400 text-white animate-pulse ring-2 ring-rose-500/50'
+                : secondsRemaining <= 10
+                ? 'bg-amber-500 border-amber-300 text-zinc-950 font-black ring-1 ring-amber-400/50'
+                : 'bg-zinc-950 border-emerald-400/70 text-emerald-300 ring-1 ring-emerald-500/30'
+            }`}
+          >
+            <Clock className="w-2.5 h-2.5" />
+            <span>{secondsRemaining}s</span>
           </div>
         )}
       </div>
