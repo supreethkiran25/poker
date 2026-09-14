@@ -40,179 +40,206 @@ export const LobbyView: React.FC<LobbyViewProps> = ({
   };
 
   return (
-    <div className="min-h-dvh w-full flex flex-col items-center justify-start sm:justify-center p-4 overflow-y-auto">
-      <div className="w-full max-w-3xl bg-zinc-950/90 backdrop-blur-xl border border-amber-500/20 rounded-3xl p-5 sm:p-8 shadow-2xl flex flex-col gap-4 my-4">
-        {/* Header with Room Code & Invite Link */}
-        <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pb-4 border-b border-zinc-800">
-          <div className="text-center sm:text-left">
-            <div className="flex items-center justify-center sm:justify-start gap-2">
-              <span className="text-xs uppercase tracking-widest text-amber-400 font-mono font-bold">
+    /*
+     * Full-height flex column:
+     *   - Scrollable content area (flex-1 overflow-y-auto)
+     *   - Sticky bottom action bar (flex-shrink-0) — ALWAYS visible, NEVER overlapped
+     */
+    <div className="flex flex-col w-full min-h-dvh bg-[#07090e]">
+
+      {/* ── Scrollable Content ── */}
+      <div className="flex-1 overflow-y-auto px-4 pt-6 pb-4">
+        <div className="w-full max-w-lg mx-auto flex flex-col gap-4">
+
+          {/* Header */}
+          <div className="text-center">
+            <div className="inline-flex items-center gap-2 mb-2">
+              <span className="text-[11px] uppercase tracking-widest text-amber-400 font-mono font-bold">
                 Private Room
               </span>
-              <span className="px-2 py-0.5 rounded-full bg-amber-500/10 border border-amber-500/30 text-amber-300 font-mono font-bold text-xs">
+              <span className="px-2.5 py-0.5 rounded-full bg-amber-500/15 border border-amber-500/35 text-amber-300 font-mono font-black text-sm tracking-widest">
                 {roomState.code}
               </span>
             </div>
-            <h1 className="text-2xl sm:text-3xl font-black text-white mt-1">
+            <h1 className="text-2xl sm:text-3xl font-black text-white tracking-tight">
               Table Waiting Room
             </h1>
+            <p className="text-zinc-500 text-xs mt-1 font-mono">
+              Share the code or link — friends can join instantly
+            </p>
           </div>
 
-          {/* Copy Buttons */}
+          {/* Invite buttons */}
           <div className="flex items-center gap-2">
             <button
               onClick={handleCopyCode}
-              className="flex items-center gap-1.5 px-3 py-2 bg-zinc-900 hover:bg-zinc-800 text-zinc-300 rounded-xl text-xs font-bold border border-zinc-700 transition"
+              className="flex-1 flex items-center justify-center gap-2 py-2.5 bg-zinc-900 hover:bg-zinc-800 text-zinc-200 rounded-xl text-xs font-bold border border-zinc-700 transition active:scale-95"
             >
-              {copiedCode ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
-              {copiedCode ? 'Code Copied!' : 'Copy Code'}
+              {copiedCode ? <Check className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4" />}
+              {copiedCode ? 'Copied!' : 'Copy Code'}
             </button>
             <button
               onClick={handleCopyLink}
-              className="flex items-center gap-1.5 px-3.5 py-2 bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 rounded-xl text-xs font-bold border border-amber-500/30 transition"
+              className="flex-1 flex items-center justify-center gap-2 py-2.5 bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 rounded-xl text-xs font-bold border border-amber-500/30 transition active:scale-95"
             >
-              {copiedLink ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
-              {copiedLink ? 'Link Copied!' : 'Copy Invite Link'}
+              {copiedLink ? <Check className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4" />}
+              {copiedLink ? 'Copied!' : 'Copy Invite Link'}
             </button>
           </div>
-        </div>
 
-        {/* Responsible Gaming Disclaimer */}
-        <div className="p-3 rounded-2xl bg-amber-500/10 border border-amber-500/20 flex items-center gap-2.5 text-xs font-mono text-amber-300/90">
-          <Shield className="w-4 h-4 text-amber-400 shrink-0" />
-          <span>{VIRTUAL_CURRENCY_DISCLAIMER}</span>
-        </div>
-
-        {/* Game Settings Overview */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-          <div className="p-3 bg-zinc-900/60 rounded-2xl border border-zinc-800/80 flex items-center gap-3">
-            <Coins className="w-5 h-5 text-amber-400" />
-            <div>
-              <div className="text-[10px] text-zinc-400 uppercase font-mono">Virtual Starting Stack</div>
-              <div className="text-sm font-bold text-white font-mono">
-                {formatRupee(roomState.config.startingChips)}
-              </div>
-            </div>
+          {/* Virtual currency disclaimer */}
+          <div className="p-3 rounded-2xl bg-amber-500/8 border border-amber-500/20 flex items-start gap-2.5 text-xs font-mono text-amber-300/80">
+            <Shield className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+            <span>{VIRTUAL_CURRENCY_DISCLAIMER}</span>
           </div>
 
-          <div className="p-3 bg-zinc-900/60 rounded-2xl border border-zinc-800/80 flex items-center gap-3">
-            <Shield className="w-5 h-5 text-amber-400" />
-            <div>
-              <div className="text-[10px] text-zinc-400 uppercase font-mono">Virtual Blinds</div>
-              <div className="text-sm font-bold text-white font-mono">
-                {formatRupee(roomState.config.smallBlind)} / {formatRupee(roomState.config.bigBlind)}
-              </div>
-            </div>
-          </div>
-
-          <div className="p-3 bg-zinc-900/60 rounded-2xl border border-zinc-800/80 flex items-center gap-3">
-            <Clock className="w-5 h-5 text-amber-400" />
-            <div>
-              <div className="text-[10px] text-zinc-400 uppercase font-mono">Turn Timer</div>
-              <div className="text-sm font-bold text-white font-mono">
-                {roomState.config.turnTimerSeconds}s
-              </div>
-            </div>
-          </div>
-
-          <div className="p-3 bg-zinc-900/60 rounded-2xl border border-zinc-800/80 flex items-center gap-3">
-            <Users className="w-5 h-5 text-amber-400" />
-            <div>
-              <div className="text-[10px] text-zinc-400 uppercase font-mono">Players</div>
-              <div className="text-sm font-bold text-white font-mono">
-                {roomState.players.length} / {roomState.config.maxPlayers}
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Seated Players List */}
-        <div>
-          <h2 className="text-xs uppercase tracking-wider text-zinc-400 font-bold mb-3">
-            Seated Players ({roomState.players.length})
-          </h2>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            {roomState.players.map((p) => (
-              <div
-                key={p.id}
-                className="flex items-center justify-between p-3.5 rounded-2xl bg-zinc-900/70 border border-zinc-800 shadow-sm"
-              >
-                <div className="flex items-center gap-3">
-                  <div className="w-9 h-9 rounded-full bg-gradient-to-tr from-amber-600 to-amber-400 p-0.5 flex items-center justify-center font-bold text-zinc-950 text-xs">
-                    {p.name.slice(0, 2).toUpperCase()}
-                  </div>
-                  <div>
-                    <div className="flex items-center gap-1.5">
-                      <span className="font-bold text-sm text-zinc-100">{p.name}</span>
-                      {p.id === myPlayerId && (
-                        <span className="text-[9px] bg-emerald-500/20 text-emerald-400 px-1.5 py-0.5 rounded font-mono font-bold">
-                          YOU
-                        </span>
-                      )}
-                      {p.isHost && (
-                        <span className="text-[9px] bg-amber-500/20 text-amber-400 px-1.5 py-0.5 rounded font-mono font-bold">
-                          HOST
-                        </span>
-                      )}
-                    </div>
-                    <div className="text-[11px] text-amber-300 font-mono">
-                      Virtual Balance: {formatRupee(p.chips)}
-                    </div>
-                  </div>
-                </div>
-
-                {/* Ready indicator */}
-                <div>
-                  {p.isReady ? (
-                    <span className="px-2.5 py-1 rounded-full bg-emerald-500/20 text-emerald-400 font-bold text-xs border border-emerald-500/40">
-                      READY
-                    </span>
-                  ) : (
-                    <span className="px-2.5 py-1 rounded-full bg-zinc-800 text-zinc-400 font-bold text-xs border border-zinc-700">
-                      WAITING
-                    </span>
-                  )}
+          {/* Game config grid */}
+          <div className="grid grid-cols-2 gap-2.5">
+            <div className="p-3 bg-zinc-900/70 rounded-2xl border border-zinc-800/80 flex items-center gap-2.5">
+              <Coins className="w-5 h-5 text-amber-400 flex-shrink-0" />
+              <div className="min-w-0">
+                <div className="text-[9px] text-zinc-500 uppercase font-mono tracking-wider">Starting Stack</div>
+                <div className="text-sm font-black text-white font-mono truncate">
+                  {formatRupee(roomState.config.startingChips)}
                 </div>
               </div>
-            ))}
+            </div>
+
+            <div className="p-3 bg-zinc-900/70 rounded-2xl border border-zinc-800/80 flex items-center gap-2.5">
+              <Shield className="w-5 h-5 text-amber-400 flex-shrink-0" />
+              <div className="min-w-0">
+                <div className="text-[9px] text-zinc-500 uppercase font-mono tracking-wider">Blinds</div>
+                <div className="text-sm font-black text-white font-mono truncate">
+                  {formatRupee(roomState.config.smallBlind)} / {formatRupee(roomState.config.bigBlind)}
+                </div>
+              </div>
+            </div>
+
+            <div className="p-3 bg-zinc-900/70 rounded-2xl border border-zinc-800/80 flex items-center gap-2.5">
+              <Clock className="w-5 h-5 text-amber-400 flex-shrink-0" />
+              <div>
+                <div className="text-[9px] text-zinc-500 uppercase font-mono tracking-wider">Turn Timer</div>
+                <div className="text-sm font-black text-white font-mono">{roomState.config.turnTimerSeconds}s</div>
+              </div>
+            </div>
+
+            <div className="p-3 bg-zinc-900/70 rounded-2xl border border-zinc-800/80 flex items-center gap-2.5">
+              <Users className="w-5 h-5 text-amber-400 flex-shrink-0" />
+              <div>
+                <div className="text-[9px] text-zinc-500 uppercase font-mono tracking-wider">Players</div>
+                <div className="text-sm font-black text-white font-mono">
+                  {roomState.players.length} / {roomState.config.maxPlayers}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Seated players */}
+          <div>
+            <h2 className="text-[11px] uppercase tracking-wider text-zinc-500 font-bold mb-2 px-1">
+              Seated Players ({roomState.players.length})
+            </h2>
+            <div className="flex flex-col gap-2">
+              {roomState.players.map((p) => (
+                <div
+                  key={p.id}
+                  className={`flex items-center justify-between p-3.5 rounded-2xl border transition-colors ${
+                    p.id === myPlayerId
+                      ? 'bg-emerald-950/30 border-emerald-800/50'
+                      : 'bg-zinc-900/60 border-zinc-800'
+                  }`}
+                >
+                  <div className="flex items-center gap-3 min-w-0">
+                    {/* Avatar */}
+                    <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-amber-600 to-amber-400 flex items-center justify-center font-black text-zinc-950 text-sm flex-shrink-0">
+                      {p.name.slice(0, 2).toUpperCase()}
+                    </div>
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <span className="font-bold text-sm text-zinc-100 truncate">{p.name}</span>
+                        {p.id === myPlayerId && (
+                          <span className="text-[9px] bg-emerald-500/20 text-emerald-400 px-1.5 py-0.5 rounded font-mono font-bold flex-shrink-0">
+                            YOU
+                          </span>
+                        )}
+                        {p.isHost && (
+                          <span className="text-[9px] bg-amber-500/20 text-amber-400 px-1.5 py-0.5 rounded font-mono font-bold flex-shrink-0">
+                            HOST
+                          </span>
+                        )}
+                      </div>
+                      <div className="text-[11px] text-amber-300/80 font-mono mt-0.5">
+                        {formatRupee(p.chips)} virtual chips
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Ready status */}
+                  <div className="flex-shrink-0 ml-2">
+                    {p.isReady ? (
+                      <span className="px-3 py-1 rounded-full bg-emerald-500/20 text-emerald-400 font-bold text-xs border border-emerald-500/40">
+                        READY
+                      </span>
+                    ) : (
+                      <span className="px-3 py-1 rounded-full bg-zinc-800 text-zinc-500 font-bold text-xs border border-zinc-700">
+                        WAITING
+                      </span>
+                    )}
+                  </div>
+                </div>
+              ))}
+
+              {/* Empty seats hint */}
+              {roomState.players.length < 2 && (
+                <div className="p-4 rounded-2xl border border-dashed border-zinc-800 text-center">
+                  <p className="text-xs text-zinc-600 font-mono">
+                    Waiting for at least 1 more player to join…
+                  </p>
+                </div>
+              )}
+            </div>
           </div>
         </div>
+      </div>
 
-        {/* Footer Actions */}
-        <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-5 border-t border-zinc-800">
+      {/* ── STICKY BOTTOM ACTION BAR — always visible, never scrolled away ── */}
+      <div
+        className="flex-shrink-0 bg-zinc-950/95 backdrop-blur-xl border-t border-zinc-800/80 px-4 pt-3"
+        style={{ paddingBottom: 'max(16px, env(safe-area-inset-bottom, 16px))' }}
+      >
+        <div className="w-full max-w-lg mx-auto flex flex-col gap-2.5">
+          {/* Ready toggle */}
           <button
-            onClick={onLeaveRoom}
-            className="flex items-center gap-2 px-4 py-2.5 text-zinc-400 hover:text-rose-400 text-xs font-bold transition"
+            onClick={() => onToggleReady(!me?.isReady)}
+            className={`w-full py-3.5 rounded-xl font-bold text-sm uppercase tracking-wider transition active:scale-[0.98] ${
+              me?.isReady
+                ? 'bg-zinc-800 text-zinc-300 border border-zinc-700 hover:bg-zinc-700'
+                : 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-lg border border-emerald-400/60'
+            }`}
           >
-            <LogOut className="w-4 h-4" />
-            Leave Table
+            {me?.isReady ? "I'm Not Ready" : "I'm Ready ✓"}
           </button>
 
-          <div className="flex items-center gap-3 w-full sm:w-auto">
-            {/* Ready Toggle Button */}
+          {/* Host: Start Game */}
+          {isHost && (
             <button
-              onClick={() => onToggleReady(!me?.isReady)}
-              className={`flex-1 sm:flex-none px-6 py-3 rounded-xl font-bold text-xs uppercase tracking-wider transition ${
-                me?.isReady
-                  ? 'bg-zinc-800 text-zinc-300 border border-zinc-700 hover:bg-zinc-700'
-                  : 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-lg border border-emerald-400'
-              }`}
+              disabled={!allReady}
+              onClick={onStartGame}
+              className="w-full py-3.5 flex items-center justify-center gap-2 bg-gradient-to-r from-amber-500 via-yellow-400 to-amber-500 hover:from-amber-400 hover:to-yellow-300 disabled:opacity-35 disabled:cursor-not-allowed text-zinc-950 font-black rounded-xl shadow-xl transition active:scale-[0.98] text-sm uppercase tracking-wider"
             >
-              {me?.isReady ? 'Unready' : "I'm Ready"}
+              <Play className="w-4 h-4 fill-zinc-950" />
+              {allReady ? 'Start Game' : `Waiting for players to ready up…`}
             </button>
+          )}
 
-            {/* Host Start Game Button */}
-            {isHost && (
-              <button
-                disabled={!allReady}
-                onClick={onStartGame}
-                className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-8 py-3 bg-gradient-to-r from-amber-500 via-yellow-400 to-amber-500 hover:from-amber-400 hover:to-yellow-300 disabled:opacity-40 disabled:cursor-not-allowed text-zinc-950 font-black rounded-xl shadow-xl transition active:scale-95 text-xs uppercase tracking-wider"
-              >
-                <Play className="w-4 h-4 fill-zinc-950" />
-                Start Game
-              </button>
-            )}
-          </div>
+          {/* Leave */}
+          <button
+            onClick={onLeaveRoom}
+            className="w-full py-2.5 flex items-center justify-center gap-2 text-zinc-500 hover:text-rose-400 text-xs font-bold transition"
+          >
+            <LogOut className="w-3.5 h-3.5" />
+            Leave Table
+          </button>
         </div>
       </div>
     </div>

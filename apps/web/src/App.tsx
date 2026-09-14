@@ -50,7 +50,7 @@ export function App() {
   };
 
   return (
-    <div className="relative w-full h-dvh overflow-hidden bg-[#07090e] text-zinc-100 font-sans">
+    <div className="relative w-full min-h-dvh bg-[#07090e] text-zinc-100 font-sans">
       {/* Reconnection banner if disconnected */}
       {!isConnected && (
         <div className="fixed top-0 inset-x-0 z-50 bg-rose-600/90 text-white text-xs font-mono py-1 px-4 flex items-center justify-center gap-2 backdrop-blur-md shadow-lg">
@@ -98,8 +98,8 @@ export function App() {
         />
       )}
 
-      {/* Chat & Floating Reactions (when in any room) */}
-      {roomState && (
+      {/* Chat & Floating Reactions — only during ACTIVE GAME, never in lobby */}
+      {roomState && gameState && gameState.phase !== 'WAITING_FOR_PLAYERS' && (
         <ChatAndReactions
           messages={chatMessages}
           reactions={floatingReactions}
