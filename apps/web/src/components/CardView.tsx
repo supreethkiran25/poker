@@ -15,19 +15,33 @@ const SUIT_SYMBOLS: Record<string, string> = {
 };
 
 const RANK_LABELS: Record<number, string> = {
-  2: '2',
-  3: '3',
-  4: '4',
-  5: '5',
-  6: '6',
-  7: '7',
-  8: '8',
-  9: '9',
-  10: '10',
-  11: 'J',
-  12: 'Q',
-  13: 'K',
-  14: 'A',
+  2: '2', 3: '3', 4: '4', 5: '5', 6: '6',
+  7: '7', 8: '8', 9: '9', 10: '10',
+  11: 'J', 12: 'Q', 13: 'K', 14: 'A',
+};
+
+const SIZE_STYLES = {
+  sm: {
+    card: 'w-9 h-[52px] rounded',
+    index: 'text-[9px]',
+    suit: 'text-[8px]',
+    center: 'text-lg',
+    padding: 'p-0.5',
+  },
+  md: {
+    card: 'w-14 h-[84px] rounded-lg',
+    index: 'text-xs',
+    suit: 'text-[10px]',
+    center: 'text-2xl',
+    padding: 'p-1',
+  },
+  lg: {
+    card: 'w-[72px] h-[104px] rounded-xl',
+    index: 'text-sm',
+    suit: 'text-[11px]',
+    center: 'text-3xl',
+    padding: 'p-1.5',
+  },
 };
 
 export const CardView: React.FC<CardViewProps> = ({
@@ -35,22 +49,27 @@ export const CardView: React.FC<CardViewProps> = ({
   size = 'md',
   isHighlighted = false,
 }) => {
-  const sizeClasses = {
-    sm: 'w-9 h-13 text-xs rounded-sm',
-    md: 'w-14 h-20 text-sm rounded-md',
-    lg: 'w-20 h-28 text-base rounded-lg',
-  }[size];
+  const s = SIZE_STYLES[size];
 
-  // If no card or card is hidden
+  // Face-down / hidden card
   if (!card || 'hidden' in card) {
     return (
       <div
-        className={`${sizeClasses} relative bg-gradient-to-br from-red-950 via-red-900 to-amber-950 border border-amber-500/40 card-shadow flex items-center justify-center select-none overflow-hidden transform transition-transform hover:-translate-y-1`}
+        className={`${s.card} relative select-none overflow-hidden card-shadow`}
+        style={{
+          background: 'linear-gradient(135deg, #7c2d12 0%, #991b1b 40%, #7c2d12 100%)',
+          border: '1.5px solid rgba(212,175,55,0.35)',
+        }}
       >
-        <div className="absolute inset-1 rounded-sm border border-dashed border-amber-400/30 flex items-center justify-center bg-black/20">
-          <div className="w-5 h-5 rounded-full border border-amber-400/50 flex items-center justify-center text-[10px] text-amber-300 font-bold">
-            ♠
-          </div>
+        {/* Card back pattern */}
+        <div
+          className="absolute inset-[3px] rounded flex items-center justify-center"
+          style={{
+            background: 'repeating-linear-gradient(45deg, rgba(0,0,0,0.15) 0px, rgba(0,0,0,0.15) 2px, transparent 2px, transparent 6px)',
+            border: '1px solid rgba(212,175,55,0.2)',
+          }}
+        >
+          <span style={{ fontSize: '0.7em', color: 'rgba(212,175,55,0.5)', fontWeight: 900 }}>♠</span>
         </div>
       </div>
     );
@@ -59,30 +78,34 @@ export const CardView: React.FC<CardViewProps> = ({
   const isRed = card.suit === 'h' || card.suit === 'd';
   const suitChar = SUIT_SYMBOLS[card.suit] || card.suit;
   const rankStr = RANK_LABELS[card.rank] || String(card.rank);
+  const color = isRed ? '#dc2626' : '#111827';
 
   return (
     <div
-      className={`${sizeClasses} relative bg-white text-zinc-900 card-shadow border ${
+      className={`${s.card} ${s.padding} relative bg-white select-none card-shadow card-deal-anim flex flex-col justify-between ${
         isHighlighted
-          ? 'ring-2 ring-yellow-400 border-yellow-400 scale-105'
-          : 'border-zinc-300'
-      } flex flex-col justify-between p-1 select-none font-bold transform transition-transform card-deal-anim`}
+          ? 'ring-2 ring-amber-400 scale-105'
+          : ''
+      }`}
+      style={{
+        border: isHighlighted ? '1.5px solid #fbbf24' : '1.5px solid #d1d5db',
+      }}
     >
-      {/* Top-left corner index */}
-      <div className={`leading-none flex flex-col items-center ${isRed ? 'text-red-600' : 'text-zinc-900'}`}>
-        <span className="text-[11px] font-black">{rankStr}</span>
-        <span className="text-[10px] -mt-0.5">{suitChar}</span>
+      {/* Top-left rank+suit */}
+      <div className="flex flex-col items-start leading-none" style={{ color }}>
+        <span className={`${s.index} font-black leading-none`}>{rankStr}</span>
+        <span className={`${s.suit} font-bold leading-none -mt-0.5`}>{suitChar}</span>
       </div>
 
-      {/* Center suit emblem */}
-      <div className={`absolute inset-0 flex items-center justify-center pointer-events-none text-2xl ${isRed ? 'text-red-600' : 'text-zinc-900'}`}>
+      {/* Center suit */}
+      <div className={`absolute inset-0 flex items-center justify-center ${s.center} pointer-events-none`} style={{ color }}>
         {suitChar}
       </div>
 
-      {/* Bottom-right inverted index */}
-      <div className={`leading-none flex flex-col items-center self-end rotate-180 ${isRed ? 'text-red-600' : 'text-zinc-900'}`}>
-        <span className="text-[11px] font-black">{rankStr}</span>
-        <span className="text-[10px] -mt-0.5">{suitChar}</span>
+      {/* Bottom-right rank+suit (rotated) */}
+      <div className="flex flex-col items-end leading-none rotate-180" style={{ color }}>
+        <span className={`${s.index} font-black leading-none`}>{rankStr}</span>
+        <span className={`${s.suit} font-bold leading-none -mt-0.5`}>{suitChar}</span>
       </div>
     </div>
   );
