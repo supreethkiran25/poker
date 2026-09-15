@@ -31,8 +31,8 @@ export function validateVirtualEconomyConfig(
   smallBlind: number,
   bigBlind: number
 ): { valid: boolean; error?: string } {
-  if (!Number.isInteger(startingChips) || startingChips < 500 || startingChips > 10_000_000) {
-    return { valid: false, error: 'Starting stack must be an integer between ₹500 and ₹1,00,00,000' };
+  if (!Number.isInteger(startingChips) || startingChips < 0 || startingChips > 100_000_000) {
+    return { valid: false, error: 'Starting stack must be an integer of at least ₹0' };
   }
   if (!Number.isInteger(smallBlind) || smallBlind < 1) {
     return { valid: false, error: 'Small blind must be an integer of at least ₹1' };
@@ -40,8 +40,8 @@ export function validateVirtualEconomyConfig(
   if (!Number.isInteger(bigBlind) || bigBlind <= smallBlind) {
     return { valid: false, error: 'Big blind must be greater than small blind' };
   }
-  if (bigBlind * 2 > startingChips) {
-    return { valid: false, error: 'Big blind is too large for the configured starting stack' };
+  if (startingChips > 0 && bigBlind > startingChips) {
+    return { valid: false, error: 'Big blind cannot exceed the configured starting stack' };
   }
   return { valid: true };
 }

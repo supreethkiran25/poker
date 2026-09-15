@@ -168,37 +168,45 @@ export function useSocket() {
     });
   }, [roomState]);
 
-  const createRoom = useCallback((hostName: string, config?: RoomConfig, selectedAvatar?: string) => {
-    if (!socketRef.current) return;
-    const av = selectedAvatar || avatar;
-    setPlayerName(hostName);
-    setAvatar(av);
-    localStorage.setItem('poker_player_name', hostName);
-    localStorage.setItem('poker_avatar', av);
+  const createRoom = useCallback(
+    (hostName: string, config?: RoomConfig, selectedAvatar?: string, buyIn?: number) => {
+      if (!socketRef.current) return;
+      const av = selectedAvatar || avatar;
+      setPlayerName(hostName);
+      setAvatar(av);
+      localStorage.setItem('poker_player_name', hostName);
+      localStorage.setItem('poker_avatar', av);
 
-    socketRef.current.emit('room:create', {
-      hostName,
-      avatar: av,
-      config,
-    });
-  }, [avatar]);
+      socketRef.current.emit('room:create', {
+        hostName,
+        avatar: av,
+        config,
+        buyIn,
+      });
+    },
+    [avatar]
+  );
 
-  const joinRoom = useCallback((roomCode: string, name: string, selectedAvatar?: string) => {
-    if (!socketRef.current) return;
-    const av = selectedAvatar || avatar;
-    const token = localStorage.getItem('poker_session_token');
-    setPlayerName(name);
-    setAvatar(av);
-    localStorage.setItem('poker_player_name', name);
-    localStorage.setItem('poker_avatar', av);
+  const joinRoom = useCallback(
+    (roomCode: string, name: string, selectedAvatar?: string, buyIn?: number) => {
+      if (!socketRef.current) return;
+      const av = selectedAvatar || avatar;
+      const token = localStorage.getItem('poker_session_token');
+      setPlayerName(name);
+      setAvatar(av);
+      localStorage.setItem('poker_player_name', name);
+      localStorage.setItem('poker_avatar', av);
 
-    socketRef.current.emit('room:join', {
-      roomCode: roomCode.trim().toUpperCase(),
-      playerName: name,
-      avatar: av,
-      sessionToken: token || undefined,
-    });
-  }, [avatar]);
+      socketRef.current.emit('room:join', {
+        roomCode: roomCode.trim().toUpperCase(),
+        playerName: name,
+        avatar: av,
+        sessionToken: token || undefined,
+        buyIn,
+      });
+    },
+    [avatar]
+  );
 
   const leaveRoom = useCallback(() => {
     if (!socketRef.current || !roomState) return;

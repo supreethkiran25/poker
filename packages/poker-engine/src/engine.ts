@@ -104,7 +104,8 @@ export class PokerEngine {
     id: string,
     name: string,
     avatar: string,
-    seatIndex?: number
+    seatIndex?: number,
+    buyIn?: number
   ): InternalPlayer {
     const existing = this.players.find((p) => p !== null && p.id === id);
     if (existing) {
@@ -121,13 +122,14 @@ export class PokerEngine {
       throw new Error('Table is full');
     }
 
+    const initialChips = buyIn !== undefined && buyIn >= 0 ? buyIn : this.config.startingChips;
     const isFirst = this.players.every((p) => p === null);
     const newPlayer: InternalPlayer = {
       id,
       name,
       avatar,
       seatIndex: targetSeat,
-      chips: this.config.startingChips,
+      chips: initialChips,
       currentBet: 0,
       totalContributed: 0,
       holeCards: [],

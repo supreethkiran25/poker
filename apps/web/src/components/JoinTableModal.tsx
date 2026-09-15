@@ -1,11 +1,14 @@
 import React, { useState } from 'react';
-import { X, Users, ArrowRight, QrCode, Link as LinkIcon, Hash } from 'lucide-react';
+import { X, Users, ArrowRight, QrCode, Link as LinkIcon, Hash, Coins, ArrowLeft } from 'lucide-react';
+import { formatRupee } from '@poker/shared';
 
 interface JoinTableModalProps {
   initialCode?: string;
   onClose: () => void;
-  onJoin: (code: string, name: string) => void;
+  onJoin: (code: string, name: string, buyIn?: number) => void;
 }
+
+const BUY_IN_PRESETS = [0, 2000, 5000, 10000, 25000, 50000];
 
 export const JoinTableModal: React.FC<JoinTableModalProps> = ({
   initialCode = '',
@@ -19,6 +22,7 @@ export const JoinTableModal: React.FC<JoinTableModalProps> = ({
   );
   const [linkInput, setLinkInput] = useState('');
   const [showQR, setShowQR] = useState(false);
+  const [buyIn, setBuyIn] = useState<number>(10000);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -32,19 +36,29 @@ export const JoinTableModal: React.FC<JoinTableModalProps> = ({
 
     if (!targetCode) return;
     localStorage.setItem('poker_player_name', name.trim());
-    onJoin(targetCode, name.trim());
+    onJoin(targetCode, name.trim(), buyIn >= 0 ? buyIn : 0);
     onClose();
   };
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md p-4 animate-fade-in overflow-y-auto">
       <div className="bg-zinc-950 border border-zinc-800 rounded-3xl p-6 sm:p-8 max-w-md w-full shadow-2xl relative my-auto">
-        <button
-          onClick={onClose}
-          className="absolute top-5 right-5 text-zinc-400 hover:text-white transition p-1"
-        >
-          <X className="w-5 h-5" />
-        </button>
+        <div className="absolute top-5 right-5 flex items-center gap-2">
+          <button
+            onClick={onClose}
+            className="p-1.5 text-zinc-400 hover:text-white hover:bg-zinc-900 rounded-xl transition flex items-center gap-1 text-xs"
+            title="Back / Close"
+          >
+            <ArrowLeft className="w-4 h-4" />
+            <span className="text-[11px] font-medium hidden sm:inline">Back</span>
+          </button>
+          <button
+            onClick={onClose}
+            className="text-zinc-400 hover:text-white transition p-1.5 hover:bg-zinc-900 rounded-xl"
+          >
+            <X className="w-5 h-5" />
+          </button>
+        </div>
 
         {/* Title */}
         <div className="flex items-center gap-2 mb-1">
@@ -54,7 +68,7 @@ export const JoinTableModal: React.FC<JoinTableModalProps> = ({
           <div>
             <h2 className="text-xl font-bold text-white tracking-tight">Join a Table</h2>
             <div className="text-[11px] text-zinc-400 font-mono">
-              Enter the room code or share link
+              Enter room details & choose your buy-in
             </div>
           </div>
         </div>
@@ -138,13 +152,80 @@ export const JoinTableModal: React.FC<JoinTableModalProps> = ({
             </div>
           )}
 
+          {/* BUY-IN SECTION (0 to n) */}
+          <div className="pt-2 border-t border-zinc-800/80">
+            <div className="flex justify-between items-center mb-1.5">
+              <label className="text-[11px] font-bold uppercase text-zinc-300 flex items-center gap-1.5">
+                <Coins className="w-3.5 h-3.5 text-amber-400" />
+                <span>Your Buy-In Amount</span>
+              </label>
+              <span className="text-xs font-mono font-bold text-amber-300 bg-amber-500/10 border border-amber-500/30 px-2 py-0.5 rounded-lg">
+                {buyIn === 0 ? '₹0 (Free / Freeroll)' : formatRupee(buyIn)}
+              </span>
+            </div>
+            <p className="text-[11px] text-zinc-400 mb-2">
+              Choose your starting stack (from 0 to any amount).
+            </p>
+
+            {/* Quick Presets */}
+            <div className="grid grid-cols-3 gap-1.5 mb-2.5">
+              {BUY_IN_PRESETS.map((preset) => (
+                <button
+                  key={preset}
+                  type="button"
+                  onClick={() => setBuyIn(preset)}
+                  className={`py-1.5 px-2 rounded-lg text-xs font-mono font-bold border transition ${
+                    buyIn === preset
+                      ? 'bg-amber-500/20 border-amber-400 text-amber-300 shadow-sm'
+                      : 'bg-zinc-900 border-zinc-800 text-zinc-400 hover:text-white hover:bg-zinc-850'
+                  }`}
+                >
+                  {preset === 0 ? '₹0 Free' : formatRupee(preset)}
+                </button>
+              ))}
+            </div>
+
+            {/* Custom Numeric Input for 0 to n */}
+            <div className="flex items-center gap-2">
+              <div className="relative flex-1">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500 font-mono text-xs">
+                  ₹
+                </span>
+                <input
+                  type="number"
+                  min="0"
+                  step="500"
+                  placeholder="Custom amount (0 to n)"
+                  value={buyIn}
+                  onChange={(e) => {
+                    const val = parseInt(e.target.value, 10);
+                    setBuyIn(isNaN(val) || val < 0 ? 0 : val);
+                  }}
+                  className="w-full bg-zinc-900 border border-zinc-700 text-white font-mono text-xs pl-7 pr-3 py-2 rounded-xl focus:outline-none focus:border-amber-400"
+                />
+              </div>
+              <input
+                type="range"
+                min="0"
+                max="100000"
+                step="500"
+                value={Math.min(buyIn, 100000)}
+                onChange={(e) => setBuyIn(parseInt(e.target.value, 10))}
+                className="w-24 accent-amber-400 cursor-pointer"
+                title="Slide to adjust buy-in"
+              />
+            </div>
+          </div>
+
           {/* Submit button - Solid Gold */}
           <button
             type="submit"
             disabled={!name.trim() || (tab === 'code' ? !code.trim() : !linkInput.trim())}
             className="w-full py-3.5 bg-gradient-to-r from-amber-500 via-amber-400 to-yellow-500 hover:from-amber-400 hover:to-yellow-400 disabled:opacity-40 disabled:cursor-not-allowed text-zinc-950 font-black text-xs uppercase tracking-wider rounded-2xl shadow-xl transition active:scale-95 flex items-center justify-center gap-1.5"
           >
-            <span>Join Table</span>
+            <span>
+              {buyIn === 0 ? 'Join Table (Free)' : `Join Table • ${formatRupee(buyIn)}`}
+            </span>
             <ArrowRight className="w-4 h-4" />
           </button>
         </form>

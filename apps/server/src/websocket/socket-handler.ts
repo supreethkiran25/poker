@@ -106,7 +106,8 @@ export function registerSocketHandlers(io: Server): void {
         sessionData.player.playerId,
         sessionData.player.name,
         sessionData.player.avatar,
-        parsed.data.config
+        parsed.data.config,
+        parsed.data.buyIn
       );
 
       sessionData.currentRoomCode = room.code;
@@ -159,7 +160,9 @@ export function registerSocketHandlers(io: Server): void {
         room.addPlayer(
           sessionData.player.playerId,
           sessionData.player.name,
-          sessionData.player.avatar
+          sessionData.player.avatar,
+          undefined,
+          parsed.data.buyIn
         );
         room.setPlayerConnection(sessionData.player.playerId, true, socket.id);
         sessionData.currentRoomCode = room.code;

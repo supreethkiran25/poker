@@ -44,7 +44,13 @@ export class Room {
   public nextHandReadyPlayers: Set<string> = new Set();
   public onStateChanged?: () => void;
 
-  constructor(hostId: string, hostName: string, hostAvatar: string, config?: RoomConfig) {
+  constructor(
+    hostId: string,
+    hostName: string,
+    hostAvatar: string,
+    config?: RoomConfig,
+    hostBuyIn?: number
+  ) {
     this.id = crypto.randomUUID();
     this.code = generateRoomCode();
     this.hostId = hostId;
@@ -53,7 +59,7 @@ export class Room {
     this.engine = new PokerEngine(this.config);
 
     // Add host as seat 0
-    this.addPlayer(hostId, hostName, hostAvatar, 0, true);
+    this.addPlayer(hostId, hostName, hostAvatar, 0, hostBuyIn, true);
   }
 
   public addPlayer(
@@ -61,6 +67,7 @@ export class Room {
     name: string,
     avatar: string,
     seatIndex?: number,
+    buyIn?: number,
     isHost: boolean = false
   ): RoomPlayer {
     const existing = this.players.get(id);
@@ -77,7 +84,7 @@ export class Room {
     }
 
     // Engine handles seat assignment
-    const internal = this.engine.addPlayer(id, name, avatar, seatIndex);
+    const internal = this.engine.addPlayer(id, name, avatar, seatIndex, buyIn);
 
     const player: RoomPlayer = {
       id,
@@ -374,9 +381,10 @@ export class RoomManager {
     hostId: string,
     hostName: string,
     hostAvatar: string,
-    config?: RoomConfig
+    config?: RoomConfig,
+    hostBuyIn?: number
   ): Room {
-    const room = new Room(hostId, hostName, hostAvatar, config);
+    const room = new Room(hostId, hostName, hostAvatar, config, hostBuyIn);
     while (this.rooms.has(room.code)) {
       room.code = generateRoomCode();
     }

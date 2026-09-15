@@ -60,14 +60,14 @@ export function App() {
     }
   }, []);
 
-  const handleCreateRoom = (name: string, config: RoomConfig) => {
+  const handleCreateRoom = (name: string, config: RoomConfig, buyIn?: number) => {
     setShowCreateModal(false);
-    createRoom(name, config);
+    createRoom(name, config, undefined, buyIn);
   };
 
-  const handleJoinRoom = (code: string, name: string) => {
+  const handleJoinRoom = (code: string, name: string, buyIn?: number) => {
     setShowJoinModal(false);
-    joinRoom(code, name);
+    joinRoom(code, name, undefined, buyIn);
   };
 
   return (

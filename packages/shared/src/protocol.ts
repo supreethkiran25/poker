@@ -3,7 +3,7 @@ import type { ActionType, RoomConfig } from './types.js';
 
 export const RoomConfigSchema = z.object({
   maxPlayers: z.number().int().min(2).max(10).default(8),
-  startingChips: z.number().int().min(500).max(10000000).default(10000),
+  startingChips: z.number().int().min(0).max(100000000).default(10000),
   smallBlind: z.number().int().min(1).max(500000).default(50),
   bigBlind: z.number().int().min(2).max(1000000).default(100),
   turnTimerSeconds: z.union([z.literal(15), z.literal(30), z.literal(45), z.literal(60)]).default(30),
@@ -17,6 +17,7 @@ export const CreateRoomSchema = z.object({
   hostName: z.string().trim().min(1).max(25),
   avatar: z.string().default('avatar-1'),
   config: RoomConfigSchema.optional(),
+  buyIn: z.number().int().min(0).optional(),
 });
 
 export const JoinRoomSchema = z.object({
@@ -24,6 +25,7 @@ export const JoinRoomSchema = z.object({
   playerName: z.string().trim().min(1).max(25),
   avatar: z.string().default('avatar-1'),
   sessionToken: z.string().optional(),
+  buyIn: z.number().int().min(0).optional(),
 });
 
 export const LeaveRoomSchema = z.object({

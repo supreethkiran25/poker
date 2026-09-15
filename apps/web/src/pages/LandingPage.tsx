@@ -8,7 +8,7 @@ interface LandingPageProps {
   initialRoomCode?: string;
   onOpenCreate: () => void;
   onOpenJoin: () => void;
-  onJoinRoom: (code: string, name: string) => void;
+  onJoinRoom: (code: string, name: string, buyIn?: number) => void;
 }
 
 export const LandingPage: React.FC<LandingPageProps> = ({
