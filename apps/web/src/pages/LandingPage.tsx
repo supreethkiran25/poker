@@ -27,6 +27,12 @@ export const LandingPage: React.FC<LandingPageProps> = ({
         <img
           src="/poker_hero_bg.jpg"
           alt="Luxury Poker Lounge"
+          width={1376}
+          height={768}
+          // @ts-expect-error React 18 types fetchpriority as fetchPriority
+          fetchpriority="high"
+          fetchPriority="high"
+          decoding="async"
           className="w-full h-full object-cover object-center opacity-35 filter brightness-75 scale-105 transition-transform duration-1000"
         />
         {/* Dark radial and gradient vignettes */}

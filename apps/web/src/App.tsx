@@ -1,14 +1,26 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, Suspense, lazy } from 'react';
 import { useSocket } from './hooks/useSocket.js';
 import { useVoiceChat } from './hooks/useVoiceChat.js';
 import { LandingPage } from './pages/LandingPage.js';
-import { CreateRoomModal } from './components/CreateRoomModal.js';
-import { JoinTableModal } from './components/JoinTableModal.js';
-import { LobbyView } from './components/LobbyView.js';
-import { PokerTable } from './components/PokerTable.js';
-import { ChatAndReactions } from './components/ChatAndReactions.js';
 import { WifiOff, AlertCircle } from 'lucide-react';
 import type { RoomConfig } from '@poker/shared';
+
+// Lazy-load non-landing views for lightning-fast FCP / initial bundle
+const CreateRoomModal = lazy(() =>
+  import('./components/CreateRoomModal.js').then((m) => ({ default: m.CreateRoomModal }))
+);
+const JoinTableModal = lazy(() =>
+  import('./components/JoinTableModal.js').then((m) => ({ default: m.JoinTableModal }))
+);
+const LobbyView = lazy(() =>
+  import('./components/LobbyView.js').then((m) => ({ default: m.LobbyView }))
+);
+const PokerTable = lazy(() =>
+  import('./components/PokerTable.js').then((m) => ({ default: m.PokerTable }))
+);
+const ChatAndReactions = lazy(() =>
+  import('./components/ChatAndReactions.js').then((m) => ({ default: m.ChatAndReactions }))
+);
 
 export function App() {
   const {
@@ -100,69 +112,79 @@ export function App() {
 
       {/* 2. Lobby View (when in room, before game start) */}
       {roomState && (!gameState || gameState.phase === 'WAITING_FOR_PLAYERS') && (
-        <LobbyView
-          roomState={roomState}
-          myPlayerId={playerId}
-          isVoiceActive={isVoiceActive}
-          isMuted={isMuted}
-          speakingPeers={speakingPeers}
-          onToggleMute={toggleMute}
-          onToggleReady={toggleReady}
-          onStartGame={startGame}
-          onLeaveRoom={leaveRoom}
-        />
+        <Suspense fallback={<div className="min-h-screen flex items-center justify-center bg-[#07090e] text-amber-400 font-mono text-xs">Loading lobby...</div>}>
+          <LobbyView
+            roomState={roomState}
+            myPlayerId={playerId}
+            isVoiceActive={isVoiceActive}
+            isMuted={isMuted}
+            speakingPeers={speakingPeers}
+            onToggleMute={toggleMute}
+            onToggleReady={toggleReady}
+            onStartGame={startGame}
+            onLeaveRoom={leaveRoom}
+          />
+        </Suspense>
       )}
 
       {/* 3. Live Poker Table (when game is active) */}
       {roomState && gameState && gameState.phase !== 'WAITING_FOR_PLAYERS' && (
-        <PokerTable
-          roomState={roomState}
-          gameState={gameState}
-          myPlayerId={playerId}
-          isVoiceActive={isVoiceActive}
-          isMuted={isMuted}
-          speakingPeers={speakingPeers}
-          tableAlerts={tableAlerts}
-          onToggleMute={toggleMute}
-          onAction={sendAction}
-          onLeaveRoom={leaveRoom}
-          onOpenChat={() => setIsChatOpen(true)}
-          onRebuyChips={rebuyChips}
-          onReadyForNextHand={readyForNextHand}
-          onDealNextHand={dealNextHand}
-          onUpdateConfig={updateRoomConfig}
-          unreadChatCount={chatMessages.length}
-        />
+        <Suspense fallback={<div className="min-h-screen flex items-center justify-center bg-[#07090e] text-amber-400 font-mono text-xs">Loading table...</div>}>
+          <PokerTable
+            roomState={roomState}
+            gameState={gameState}
+            myPlayerId={playerId}
+            isVoiceActive={isVoiceActive}
+            isMuted={isMuted}
+            speakingPeers={speakingPeers}
+            tableAlerts={tableAlerts}
+            onToggleMute={toggleMute}
+            onAction={sendAction}
+            onLeaveRoom={leaveRoom}
+            onOpenChat={() => setIsChatOpen(true)}
+            onRebuyChips={rebuyChips}
+            onReadyForNextHand={readyForNextHand}
+            onDealNextHand={dealNextHand}
+            onUpdateConfig={updateRoomConfig}
+            unreadChatCount={chatMessages.length}
+          />
+        </Suspense>
       )}
 
       {/* Table Chat & Quick Reactions (Slide-over drawer - zero table obstruction) */}
       {roomState && (
-        <ChatAndReactions
-          messages={chatMessages}
-          reactions={floatingReactions}
-          onSendMessage={sendChat}
-          onSendReaction={sendReaction}
-          isOpen={isChatOpen}
-          onClose={() => setIsChatOpen(false)}
-        />
+        <Suspense fallback={null}>
+          <ChatAndReactions
+            messages={chatMessages}
+            reactions={floatingReactions}
+            onSendMessage={sendChat}
+            onSendReaction={sendReaction}
+            isOpen={isChatOpen}
+            onClose={() => setIsChatOpen(false)}
+          />
+        </Suspense>
       )}
 
-      {/* Create Table Modal (Step-by-step wizard) */}
+      {/* Create Table Modal */}
       {showCreateModal && (
-        <CreateRoomModal
-          initialName={playerName}
-          onClose={() => setShowCreateModal(false)}
-          onCreate={handleCreateRoom}
-        />
+        <Suspense fallback={null}>
+          <CreateRoomModal
+            initialName={playerName}
+            onClose={() => setShowCreateModal(false)}
+            onCreate={handleCreateRoom}
+          />
+        </Suspense>
       )}
 
       {/* Join Table Modal */}
       {showJoinModal && (
-        <JoinTableModal
-          initialCode={initialRoomCode}
-          onClose={() => setShowJoinModal(false)}
-          onJoin={handleJoinRoom}
-        />
+        <Suspense fallback={null}>
+          <JoinTableModal
+            initialCode={initialRoomCode}
+            onClose={() => setShowJoinModal(false)}
+            onJoin={handleJoinRoom}
+          />
+        </Suspense>
       )}
     </div>
   );
