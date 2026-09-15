@@ -81,15 +81,6 @@ export const LandingPage: React.FC<LandingPageProps> = ({
           </button>
         </nav>
 
-        {/* Header Right: Screen 1 Login Button & Join Table */}
-        <div className="flex items-center gap-2.5">
-          <button
-            onClick={onOpenJoin}
-            className="px-4 py-1.5 bg-zinc-900/90 hover:bg-zinc-800 text-zinc-300 hover:text-white font-bold text-xs rounded-xl border border-zinc-800 transition"
-          >
-            Login
-          </button>
-        </div>
       </header>
 
       {/* ── Main Hero Section (Matching Screen 1) ── */}
