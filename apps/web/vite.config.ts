@@ -1,9 +1,16 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
+import basicSsl from '@vitejs/plugin-basic-ssl';
+
+const isHttps = process.env.HTTPS === 'true' || process.argv.includes('--https');
 
 export default defineConfig({
-  plugins: [react()],
+  plugins: [
+    react(),
+    ...(isHttps ? [basicSsl()] : []),
+  ],
   server: {
+    host: true,
     port: 5173,
     proxy: {
       '/socket.io': {

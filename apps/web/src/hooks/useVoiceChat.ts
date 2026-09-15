@@ -6,6 +6,8 @@ interface PeerConnection {
   audioEl: HTMLAudioElement;
   candidateQueue: RTCIceCandidateInit[];
   hasRemoteDescription: boolean;
+  transceiver?: RTCRtpTransceiver;
+  isPolite: boolean;
 }
 
 // Multi-network ICE servers (Google STUN + Cloudflare STUN + Free Metered OpenRelay TURN for strict NATs)
@@ -28,36 +30,102 @@ const ICE_SERVERS: RTCConfiguration = {
   iceCandidatePoolSize: 2,
 };
 
-// Tune SDP to enable Opus in-band Forward Error Correction (FEC) & optimal voice bitrates
+// Safely tune SDP to enable Opus in-band FEC & optimal voice bitrates ONLY for the Opus payload
 function tuneSdp(sdp: string): string {
   if (!sdp) return sdp;
-  return sdp.replace(/a=fmtp:(\d+) (.*)/g, (match, _pt, params) => {
-    if (params.includes('useinbandfec')) return match;
-    return `${match};useinbandfec=1;maxaveragebitrate=32000;stereo=0;sprop-stereo=0`;
-  });
+  // Match Opus payload type: e.g. "a=rtpmap:111 opus/48000/2"
+  const opusMatch = sdp.match(/a=rtpmap:(\d+)\s+opus\/48000/i);
+  if (!opusMatch) return sdp;
+
+  const pt = opusMatch[1];
+  const fmtpRegex = new RegExp(`(a=fmtp:${pt}\\s+)(.*)`);
+
+  if (fmtpRegex.test(sdp)) {
+    return sdp.replace(fmtpRegex, (_match, prefix, params) => {
+      let updated = params;
+      if (!updated.includes('useinbandfec=')) updated += ';useinbandfec=1';
+      if (!updated.includes('stereo=')) updated += ';stereo=0';
+      if (!updated.includes('sprop-stereo=')) updated += ';sprop-stereo=0';
+      if (!updated.includes('maxaveragebitrate=')) updated += ';maxaveragebitrate=32000';
+      return `${prefix}${updated}`;
+    });
+  } else {
+    // Append a=fmtp for Opus directly after the rtpmap line
+    return sdp.replace(
+      new RegExp(`(a=rtpmap:${pt}\\s+opus/48000/2[^\r\n]*\r?\n)`),
+      `$1a=fmtp:${pt} useinbandfec=1;maxaveragebitrate=32000;stereo=0;sprop-stereo=0\r\n`
+    );
+  }
 }
 
+// Audio container: Must NOT be 'display: none' because WebKit (iOS Safari)
+// blocks/suspends audio elements in display:none subtrees.
 function getAudioContainer(): HTMLElement {
   let container = document.getElementById('poker-voice-audio-container');
   if (!container) {
     container = document.createElement('div');
     container.id = 'poker-voice-audio-container';
-    container.style.display = 'none';
+    container.style.position = 'fixed';
+    container.style.top = '-9999px';
+    container.style.left = '-9999px';
+    container.style.width = '1px';
+    container.style.height = '1px';
+    container.style.opacity = '0.001';
+    container.style.pointerEvents = 'none';
+    container.style.zIndex = '-1';
     document.body.appendChild(container);
   }
   return container;
 }
 
+// Resilient multi-stage microphone acquisition
+async function acquireMicrophoneStream(): Promise<MediaStream> {
+  // Check secure context
+  if (typeof window !== 'undefined' && window.isSecureContext === false) {
+    throw new Error(
+      'INSECURE_CONTEXT: Microphone requires HTTPS or localhost. When connecting from another device (like mobile), open via HTTPS.'
+    );
+  }
+
+  if (!navigator?.mediaDevices?.getUserMedia) {
+    throw new Error('NOT_SUPPORTED: Microphone is not supported on this browser or platform.');
+  }
+
+  // Attempt 1: Standard voice constraints for echo cancellation, AGC, noise suppression
+  try {
+    return await navigator.mediaDevices.getUserMedia({
+      audio: {
+        echoCancellation: true,
+        noiseSuppression: true,
+        autoGainControl: true,
+      },
+      video: false,
+    });
+  } catch (err: any) {
+    console.warn('getUserMedia with voice constraints rejected, trying fallback:', err);
+    // If permission was explicitly denied, do not retry
+    if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
+      throw err;
+    }
+  }
+
+  // Attempt 2: Minimal baseline fallback (works with Bluetooth headsets, AirPods, older hardware)
+  return await navigator.mediaDevices.getUserMedia({
+    audio: true,
+    video: false,
+  });
+}
+
 export function useVoiceChat(socket: Socket | null, roomCode?: string, _myPlayerId?: string) {
   const [isVoiceActive, setIsVoiceActive] = useState(false);
-  const [isMuted, setIsMuted] = useState(false);
+  const [isMuted, setIsMuted] = useState(true);
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [micError, setMicError] = useState<string | null>(null);
   const [speakingPeers, setSpeakingPeers] = useState<Record<string, boolean>>({});
   const [mutedPeers, setMutedPeers] = useState<Record<string, boolean>>({});
 
   const isVoiceActiveRef = useRef(false);
-  const isMutedRef = useRef(false);
+  const isMutedRef = useRef(true);
   const socketRef = useRef(socket);
   const roomCodeRef = useRef(roomCode);
 
@@ -87,11 +155,22 @@ export function useVoiceChat(socket: Socket | null, roomCode?: string, _myPlayer
       });
     };
 
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        unlockAudio();
+      }
+    };
+
     window.addEventListener('touchstart', unlockAudio, { passive: true });
+    window.addEventListener('pointerdown', unlockAudio, { passive: true });
     window.addEventListener('click', unlockAudio, { passive: true });
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
     return () => {
       window.removeEventListener('touchstart', unlockAudio);
+      window.removeEventListener('pointerdown', unlockAudio);
       window.removeEventListener('click', unlockAudio);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
   }, []);
 
@@ -120,13 +199,15 @@ export function useVoiceChat(socket: Socket | null, roomCode?: string, _myPlayer
     }
 
     isVoiceActiveRef.current = false;
+    isMutedRef.current = true;
     setIsVoiceActive(false);
+    setIsMuted(true);
     setIsSpeaking(false);
     setSpeakingPeers({});
     setMutedPeers({});
   }, []);
 
-  // Voice Activity Detection (VAD) with Hysteresis & Hangover to avoid clipping speech
+  // Voice Activity Detection (VAD) with Hysteresis & Hangover
   const setupVAD = (stream: MediaStream) => {
     try {
       const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
@@ -134,7 +215,6 @@ export function useVoiceChat(socket: Socket | null, roomCode?: string, _myPlayer
       const ctx = new AudioCtx();
       audioContextRef.current = ctx;
 
-      // Resume if suspended on mobile
       if (ctx.state === 'suspended') {
         ctx.resume().catch(() => {});
       }
@@ -215,26 +295,43 @@ export function useVoiceChat(socket: Socket | null, roomCode?: string, _myPlayer
       audioEl.autoplay = true;
       (audioEl as any).playsInline = true;
       audioEl.setAttribute('playsinline', 'true');
+      audioEl.setAttribute('webkit-playsinline', 'true');
       audioEl.volume = 1.0;
       audioEl.muted = false;
 
       const container = getAudioContainer();
       container.appendChild(audioEl);
 
+      const mySocketId = socketRef.current?.id || '';
+      const isPolite = mySocketId ? mySocketId < peerSocketId : !initiator;
+
+      // Add transceiver for bidirectional audio
+      let transceiver: RTCRtpTransceiver | undefined;
+      try {
+        const localTrack = localStreamRef.current?.getAudioTracks()[0];
+        if (localTrack && localStreamRef.current) {
+          transceiver = pc.addTransceiver(localTrack, {
+            direction: 'sendrecv',
+            streams: [localStreamRef.current],
+          });
+        } else {
+          transceiver = pc.addTransceiver('audio', {
+            direction: 'recvonly',
+          });
+        }
+      } catch (e) {
+        console.warn('addTransceiver fallback to addTrack if needed:', e);
+      }
+
       const peerEntry: PeerConnection = {
         pc,
         audioEl,
         candidateQueue: [],
         hasRemoteDescription: false,
+        transceiver,
+        isPolite,
       };
       peersRef.current.set(peerSocketId, peerEntry);
-
-      // Add local audio tracks if we have local microphone
-      if (localStreamRef.current) {
-        localStreamRef.current.getAudioTracks().forEach((track) => {
-          pc.addTrack(track, localStreamRef.current!);
-        });
-      }
 
       // Handle ICE candidates
       pc.onicecandidate = (event) => {
@@ -267,7 +364,7 @@ export function useVoiceChat(socket: Socket | null, roomCode?: string, _myPlayer
 
       // If initiator, create and send offer with tuned SDP
       if (initiator) {
-        pc.createOffer({ offerToReceiveAudio: true })
+        pc.createOffer()
           .then((offer) => {
             const tuned = new RTCSessionDescription({
               type: offer.type,
@@ -291,27 +388,28 @@ export function useVoiceChat(socket: Socket | null, roomCode?: string, _myPlayer
     []
   );
 
-  // Join Voice Call
+  // Join Voice Call (request microphone and unmute)
   const startVoice = useCallback(async () => {
     if (!socketRef.current || !roomCodeRef.current) return;
     setMicError(null);
 
     try {
-      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-        setMicError('Microphone not supported on this device/browser.');
-        return;
-      }
+      const stream = await acquireMicrophoneStream();
 
-      const stream = await navigator.mediaDevices.getUserMedia({
-        audio: {
-          echoCancellation: { ideal: true },
-          noiseSuppression: { ideal: true },
-          autoGainControl: { ideal: true },
-          sampleRate: { ideal: 48000 },
-          channelCount: { ideal: 1 },
-        },
-        video: false,
-      });
+      // Listen for track ending (e.g. headset unplugged, OS revocation)
+      const track = stream.getAudioTracks()[0];
+      if (track) {
+        track.onended = () => {
+          localStreamRef.current = null;
+          setIsVoiceActive(false);
+          setIsMuted(true);
+          isVoiceActiveRef.current = false;
+          isMutedRef.current = true;
+          if (socketRef.current && roomCodeRef.current) {
+            socketRef.current.emit('voice:state', { roomCode: roomCodeRef.current, isMuted: true });
+          }
+        };
+      }
 
       localStreamRef.current = stream;
       isVoiceActiveRef.current = true;
@@ -320,19 +418,40 @@ export function useVoiceChat(socket: Socket | null, roomCode?: string, _myPlayer
       isMutedRef.current = false;
       setupVAD(stream);
 
-      // Add tracks to any peers that were already connected
-      peersRef.current.forEach(({ pc }) => {
-        stream.getAudioTracks().forEach((track) => {
-          pc.addTrack(track, stream);
+      // Attach audio track to all peer connections
+      if (track) {
+        peersRef.current.forEach(async ({ pc, transceiver }) => {
+          try {
+            if (transceiver?.sender) {
+              await transceiver.sender.replaceTrack(track);
+              transceiver.direction = 'sendrecv';
+            } else {
+              pc.addTrack(track, stream);
+            }
+          } catch (e) {
+            console.warn('Failed to attach track to existing peer:', e);
+          }
         });
-      });
+      }
 
-      // Tell server we joined voice room
+      // Tell server we are active & unmuted
       socketRef.current.emit('voice:join', { roomCode: roomCodeRef.current });
       socketRef.current.emit('voice:state', { roomCode: roomCodeRef.current, isMuted: false });
     } catch (err: any) {
-      console.warn('Microphone access denied or error:', err);
-      setMicError('Mic permission required to talk');
+      console.warn('Microphone access failed:', err);
+      if (err.message?.startsWith('INSECURE_CONTEXT')) {
+        setMicError('Microphone requires HTTPS on mobile/LAN. Run "npm run dev:https" to test on mobile.');
+      } else if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
+        setMicError('Mic permission denied. Please allow microphone access in browser settings.');
+      } else if (err.name === 'NotFoundError' || err.name === 'DevicesNotFoundError') {
+        setMicError('No microphone detected on this device.');
+      } else if (err.name === 'NotReadableError' || err.name === 'TrackStartError') {
+        setMicError('Microphone is in use by another app or system audio is busy.');
+      } else if (err.name === 'OverconstrainedError') {
+        setMicError('Microphone constraints not supported by your device.');
+      } else {
+        setMicError(err.message || 'Could not access microphone.');
+      }
     }
   }, []);
 
@@ -344,10 +463,17 @@ export function useVoiceChat(socket: Socket | null, roomCode?: string, _myPlayer
     cleanup();
   }, [cleanup]);
 
-  // Toggle Mute
-  const toggleMute = useCallback(() => {
+  // Toggle Mute / Unmute
+  const toggleMute = useCallback(async () => {
     if (!localStreamRef.current) {
-      startVoice();
+      await startVoice();
+      return;
+    }
+
+    // Verify track is still live
+    const activeTrack = localStreamRef.current.getAudioTracks().find((t) => t.readyState === 'live');
+    if (!activeTrack) {
+      await startVoice();
       return;
     }
 
@@ -366,6 +492,18 @@ export function useVoiceChat(socket: Socket | null, roomCode?: string, _myPlayer
       }
     }
   }, [isMuted, startVoice]);
+
+  // Auto-join voice room as a listener upon entering table/lobby
+  useEffect(() => {
+    if (!socket || !roomCode) return;
+
+    socket.emit('voice:join', { roomCode });
+    socket.emit('voice:state', { roomCode, isMuted: true });
+
+    return () => {
+      socket.emit('voice:leave', { roomCode });
+    };
+  }, [socket, roomCode]);
 
   // Socket signaling listeners
   useEffect(() => {
@@ -406,13 +544,27 @@ export function useVoiceChat(socket: Socket | null, roomCode?: string, _myPlayer
 
       try {
         if (signal.type === 'offer') {
-          await pc.setRemoteDescription(new RTCSessionDescription(signal.sdp));
+          // Check for offer collision (glare)
+          const offerCollision = pc.signalingState !== 'stable';
+
+          if (offerCollision) {
+            if (!peer.isPolite) {
+              return; // Impolite peer ignores colliding offer
+            }
+            await Promise.all([
+              pc.setLocalDescription({ type: 'rollback' }),
+              pc.setRemoteDescription(new RTCSessionDescription(signal.sdp)),
+            ]);
+          } else {
+            await pc.setRemoteDescription(new RTCSessionDescription(signal.sdp));
+          }
+
           peer.hasRemoteDescription = true;
 
           // Flush queued candidates
           if (peer.candidateQueue.length > 0) {
             for (const cand of peer.candidateQueue) {
-              await pc.addIceCandidate(new RTCIceCandidate(cand)).catch(() => {});
+              await pc.addIceCandidate(cand).catch(() => {});
             }
             peer.candidateQueue = [];
           }
@@ -431,23 +583,24 @@ export function useVoiceChat(socket: Socket | null, roomCode?: string, _myPlayer
             });
           }
         } else if (signal.type === 'answer') {
-          await pc.setRemoteDescription(new RTCSessionDescription(signal.sdp));
-          peer.hasRemoteDescription = true;
+          if (pc.signalingState === 'have-local-offer') {
+            await pc.setRemoteDescription(new RTCSessionDescription(signal.sdp));
+            peer.hasRemoteDescription = true;
 
-          // Flush queued candidates
-          if (peer.candidateQueue.length > 0) {
-            for (const cand of peer.candidateQueue) {
-              await pc.addIceCandidate(new RTCIceCandidate(cand)).catch(() => {});
+            // Flush queued candidates
+            if (peer.candidateQueue.length > 0) {
+              for (const cand of peer.candidateQueue) {
+                await pc.addIceCandidate(cand).catch(() => {});
+              }
+              peer.candidateQueue = [];
             }
-            peer.candidateQueue = [];
           }
         } else if (signal.type === 'candidate' && signal.candidate) {
           if (peer.hasRemoteDescription && pc.remoteDescription) {
-            await pc.addIceCandidate(new RTCIceCandidate(signal.candidate)).catch((err) => {
+            await pc.addIceCandidate(signal.candidate).catch((err) => {
               console.warn('Failed to add ICE candidate:', err);
             });
           } else {
-            // Queue until remote description is set
             peer.candidateQueue.push(signal.candidate);
           }
         }

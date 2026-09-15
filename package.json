@@ -8,6 +8,7 @@
   ],
   "scripts": {
     "dev": "concurrently -n \"server,web\" -c \"blue,green\" \"npm run dev -w apps/server\" \"npm run dev -w apps/web\"",
+    "dev:https": "concurrently -n \"server,web\" -c \"blue,green\" \"npm run dev -w apps/server\" \"npm run dev:https -w apps/web\"",
     "build": "npm run build -w packages/shared && npm run build -w packages/poker-engine && npm run build -w apps/server && npm run build -w apps/web",
     "test": "npm run test -w packages/poker-engine && npm run test -w apps/server",
     "test:engine": "npm run test -w packages/poker-engine",

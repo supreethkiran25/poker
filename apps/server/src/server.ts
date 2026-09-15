@@ -11,10 +11,30 @@ import { getRecentHands } from './db/database.js';
 const app = express();
 const server = http.createServer(app);
 
+// Dynamic origin validator for local network and dev devices
+const isAllowedOrigin = (
+  origin: string | undefined,
+  callback: (err: Error | null, allow?: boolean) => void
+) => {
+  if (!origin) return callback(null, true);
+  if (
+    CONFIG.NODE_ENV === 'development' ||
+    origin === CONFIG.CLIENT_ORIGIN ||
+    origin === 'http://localhost:5173' ||
+    origin === 'https://localhost:5173' ||
+    origin === 'http://127.0.0.1:5173' ||
+    origin === 'https://127.0.0.1:5173' ||
+    /^https?:\/\/(localhost|127\.0\.0\.1|192\.168\.\d+\.\d+|10\.\d+\.\d+\.\d+|172\.(1[6-9]|2\d|3[0-1])\.\d+\.\d+)(:\d+)?$/.test(origin)
+  ) {
+    return callback(null, true);
+  }
+  return callback(null, false);
+};
+
 // CORS
 app.use(
   cors({
-    origin: [CONFIG.CLIENT_ORIGIN, 'http://localhost:5173', 'http://127.0.0.1:5173'],
+    origin: isAllowedOrigin,
     credentials: true,
   })
 );
@@ -69,7 +89,7 @@ app.get('/api/rooms/:code/history', (req, res) => {
 // Socket.IO Server
 const io = new Server(server, {
   cors: {
-    origin: [CONFIG.CLIENT_ORIGIN, 'http://localhost:5173', 'http://127.0.0.1:5173'],
+    origin: isAllowedOrigin,
     methods: ['GET', 'POST'],
     credentials: true,
   },
