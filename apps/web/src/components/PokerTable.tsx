@@ -377,12 +377,13 @@ export const PokerTable: React.FC<PokerTableProps> = ({
             </div>
 
             {/* ── Player's Hole Cards on the Felt (in front of seat) ── */}
+            {/* ── Player's Hole Cards on the Felt (Cleanly positioned above seat) ── */}
             {me && me.holeCards && me.holeCards.length > 0 && !me.hasFolded && (
               <div
                 className="absolute z-20 flex items-center -space-x-1 sm:space-x-1 pointer-events-auto"
                 style={{
                   left: '50%',
-                  top: isMobilePortrait ? '69%' : '66%',
+                  top: isMobilePortrait ? '78%' : '74%',
                   transform: 'translate(-50%, -50%)',
                 }}
               >
@@ -396,27 +397,6 @@ export const PokerTable: React.FC<PokerTableProps> = ({
                     tiltDeg={idx === 0 ? -4 : 4}
                   />
                 ))}
-              </div>
-            )}
-
-            {/* ── Screen 5: Floating Circular Timer Badge beside "You" ── */}
-            {isMyTurn && secondsRemaining !== null && (
-              <div
-                className="absolute z-25 flex flex-col items-center justify-center pointer-events-none select-none animate-pulse"
-                style={{
-                  left: isMobilePortrait ? '82%' : '70%',
-                  top: isMobilePortrait ? '84%' : '78%',
-                  transform: 'translate(-50%, -50%)',
-                }}
-              >
-                <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-full bg-zinc-950/95 border-2 border-emerald-500 shadow-2xl flex flex-col items-center justify-center p-1 backdrop-blur-md ring-4 ring-emerald-500/20">
-                  <span className="text-xs sm:text-sm font-black font-mono text-white leading-none">
-                    00:{secondsRemaining < 10 ? `0${secondsRemaining}` : secondsRemaining}
-                  </span>
-                  <span className="text-[8px] sm:text-[9px] font-mono font-bold text-emerald-400 uppercase tracking-tighter mt-0.5">
-                    Your Turn
-                  </span>
-                </div>
               </div>
             )}
 
@@ -462,20 +442,31 @@ export const PokerTable: React.FC<PokerTableProps> = ({
                 </div>
                 <div className="text-[10px] text-zinc-400 font-mono">
                   {gameState.players.some((p) => p.chips === 0)
-                    ? 'Waiting for players with 0 chips to rebuy…'
-                    : 'Dealing next hand automatically…'}
+                    ? 'Waiting for players to rebuy chips…'
+                    : 'Next hand ready…'}
                 </div>
               </div>
 
               <div className="flex items-center gap-2 w-full sm:w-auto">
-                {/* Immediate Deal Button */}
+                {/* View Hand Recap button if dismissed */}
+                {!showShowdown && (
+                  <button
+                    onClick={() => setShowShowdown(true)}
+                    className="flex-1 sm:flex-none px-3 py-2 bg-zinc-900 hover:bg-zinc-800 text-amber-300 border border-amber-500/40 text-xs font-bold rounded-xl transition flex items-center justify-center gap-1.5"
+                  >
+                    <Trophy className="w-3.5 h-3.5 text-amber-400" />
+                    <span>View Hand Recap</span>
+                  </button>
+                )}
+
+                {/* Immediate Deal / Ready Button */}
                 {onDealNextHand && (
                   <button
                     onClick={onDealNextHand}
                     className="flex-1 sm:flex-none px-4 py-2.5 bg-gradient-to-r from-amber-500 to-yellow-500 hover:from-amber-400 text-zinc-950 font-black text-xs uppercase tracking-wider rounded-xl shadow-lg transition flex items-center justify-center gap-1.5"
                   >
                     <Play className="w-4 h-4 fill-zinc-950" />
-                    <span>Deal Now</span>
+                    <span>{isHost ? 'Deal Now' : 'Ready'}</span>
                   </button>
                 )}
               </div>

@@ -340,6 +340,9 @@ export function registerSocketHandlers(io: Server): void {
         socketId: socket.id,
       });
 
+      // Set player ID on socket immediately
+      (socket as any).__playerId = sessionData.player.playerId;
+
       // Send existing peers in this voice room to the joiner
       const voiceRoom = io.sockets.adapter.rooms.get(`voice:${roomCode}`);
       const peers: { playerId: string; socketId: string }[] = [];
@@ -352,7 +355,6 @@ export function registerSocketHandlers(io: Server): void {
           }
         }
       }
-      (socket as any).__playerId = sessionData.player.playerId;
       socket.emit('voice:peers', { peers });
     });
 
@@ -467,10 +469,23 @@ export function registerSocketHandlers(io: Server): void {
       if (!room) return;
 
       if (room.hostId !== sessionData.player.playerId) {
-        socket.emit('error:notification', {
-          code: 'UNAUTHORIZED',
-          message: 'Only the host can deal the next hand.',
-        });
+        // Non-host player signals ready for next hand
+        const started = room.setPlayerNextHandReady(sessionData.player.playerId, true);
+        broadcastRoomState(room);
+        if (started) {
+          broadcastGameState(room);
+          io.to(`room:${room.code}`).emit('table:alert', {
+            id: crypto.randomUUID(),
+            type: 'INFO',
+            message: '♠ All players ready! Starting next hand…',
+          });
+        } else {
+          io.to(`room:${room.code}`).emit('table:alert', {
+            id: crypto.randomUUID(),
+            type: 'INFO',
+            message: `✓ ${sessionData.player.name} is ready for next hand`,
+          });
+        }
         return;
       }
 
