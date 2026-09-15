@@ -246,7 +246,8 @@ export class Room {
         state.dealerSeat,
         state.communityCards,
         state.pot,
-        state.lastHandResult.winners
+        state.lastHandResult.winners,
+        state.lastHandResult.showdownHands
       );
     }
 
@@ -255,7 +256,7 @@ export class Room {
     // Check if at least 2 players have chips to continue
     const activeWithChips = this.engine.getPlayers().filter((p) => p !== null && p.chips > 0);
     if (activeWithChips.length >= 2) {
-      // Auto-continue to next hand after 4 seconds (3-5 seconds window)
+      // Auto-continue to next hand after 8 seconds (gives full 7s auto-fade + 700ms transition time)
       this.nextHandTimerHandle = setTimeout(() => {
         this.nextHandTimerHandle = null;
         if (this.engine.getPhase() === 'HAND_COMPLETE') {
@@ -264,7 +265,7 @@ export class Room {
             this.onStateChanged();
           }
         }
-      }, 4000);
+      }, 8000);
     }
   }
 

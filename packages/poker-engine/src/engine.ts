@@ -581,16 +581,20 @@ export class PokerEngine {
       winners: [
         {
           playerId: winner.id,
+          playerName: winner.name,
           amount: awardAmount,
           handName: 'Won by default (all opponents folded)',
           winningCards: [...winner.holeCards],
+          holeCards: [...winner.holeCards],
         },
       ],
       potBreakdown: [{ potIndex: 0, amount: awardAmount, winnerIds: [winner.id] }],
       showdownHands: [
         {
           playerId: winner.id,
+          playerName: winner.name,
           cards: [...winner.holeCards],
+          best5: [...winner.holeCards],
           handRank: 'Default',
           handName: 'Won by default (all opponents folded)',
         },
@@ -636,7 +640,9 @@ export class PokerEngine {
       best5Map.set(p!.id, evaluated.best5);
       showdownHandsList.push({
         playerId: p!.id,
-        cards: p!.holeCards,
+        playerName: p!.name,
+        cards: [...p!.holeCards],
+        best5: evaluated.best5,
         handRank: evaluated.categoryName,
         handName: evaluated.handDescription,
       });
@@ -669,9 +675,11 @@ export class PokerEngine {
         } else {
           winnersSummary.push({
             playerId: w.playerId,
+            playerName: player?.name ?? 'Player',
             amount: w.amount,
             handName: handInfo?.handName ?? 'Winner',
             winningCards,
+            holeCards: player ? [...player.holeCards] : [],
           });
         }
       }

@@ -82,14 +82,18 @@ export interface SidePot {
 
 export interface HandWinner {
   playerId: string;
+  playerName?: string;
   amount: number;
   handName: string;
   winningCards: Card[];
+  holeCards?: Card[];
 }
 
 export interface ShowdownHand {
   playerId: string;
+  playerName?: string;
   cards: Card[];
+  best5?: Card[];
   handRank: string;
   handName: string;
 }

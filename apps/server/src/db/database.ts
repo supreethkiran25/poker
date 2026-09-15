@@ -51,6 +51,7 @@ function initDatabase(database: DatabaseSync): void {
       community_cards TEXT NOT NULL,
       total_pot INTEGER NOT NULL,
       winners TEXT NOT NULL,
+      showdown_hands TEXT DEFAULT '[]',
       created_at INTEGER NOT NULL
     );
 
@@ -115,12 +116,18 @@ export function recordHandHistory(
   dealerSeat: number,
   communityCards: Card[],
   totalPot: number,
-  winners: HandResult['winners']
+  winners: HandResult['winners'],
+  showdownHands: HandResult['showdownHands'] = []
 ): void {
   const database = getDatabase();
+  try {
+    database.exec(`ALTER TABLE hands ADD COLUMN showdown_hands TEXT DEFAULT '[]';`);
+  } catch {
+    // Column already exists
+  }
   const stmt = database.prepare(`
-    INSERT INTO hands (id, room_id, hand_number, dealer_seat, community_cards, total_pot, winners, created_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO hands (id, room_id, hand_number, dealer_seat, community_cards, total_pot, winners, showdown_hands, created_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
   `);
   stmt.run(
     handId,
@@ -130,6 +137,7 @@ export function recordHandHistory(
     JSON.stringify(communityCards),
     totalPot,
     JSON.stringify(winners),
+    JSON.stringify(showdownHands),
     Date.now()
   );
 }
@@ -144,5 +152,6 @@ export function getRecentHands(roomId: string, limit: number = 10): any[] {
     ...r,
     community_cards: JSON.parse(r.community_cards),
     winners: JSON.parse(r.winners),
+    showdown_hands: r.showdown_hands ? JSON.parse(r.showdown_hands) : [],
   }));
 }

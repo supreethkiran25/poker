@@ -73,6 +73,10 @@ export function evaluate5Cards(cards: Card[]): EvaluatedHand {
   // Straight Flush
   if (isStraight && isFlush) {
     const isRoyal = straightHighRank === 14;
+    const best5Cards =
+      straightHighRank === 5 && sorted[0].rank === 14
+        ? [...sorted.slice(1), sorted[0]]
+        : sorted;
     return {
       category: HandCategory.STRAIGHT_FLUSH,
       categoryName: isRoyal ? 'Royal Flush' : 'Straight Flush',
@@ -80,7 +84,7 @@ export function evaluate5Cards(cards: Card[]): EvaluatedHand {
         ? 'Royal Flush'
         : `Straight Flush, ${RANK_STRINGS[straightHighRank as Rank]} High`,
       ranks: [straightHighRank],
-      best5: sorted,
+      best5: best5Cards,
     };
   }
 
@@ -102,12 +106,14 @@ export function evaluate5Cards(cards: Card[]): EvaluatedHand {
   if (groups[0].count === 4) {
     const quadRank = groups[0].rank;
     const kicker = groups[1].rank;
+    const quadCards = sorted.filter((c) => c.rank === quadRank);
+    const kickerCards = sorted.filter((c) => c.rank === kicker);
     return {
       category: HandCategory.FOUR_OF_A_KIND,
       categoryName: 'Four of a Kind',
       handDescription: `Four of a Kind, ${RANK_STRINGS[quadRank as Rank]}s`,
       ranks: [quadRank, kicker],
-      best5: sorted,
+      best5: [...quadCards, ...kickerCards],
     };
   }
 
@@ -115,12 +121,14 @@ export function evaluate5Cards(cards: Card[]): EvaluatedHand {
   if (groups[0].count === 3 && groups[1].count === 2) {
     const tripsRank = groups[0].rank;
     const pairRank = groups[1].rank;
+    const tripsCards = sorted.filter((c) => c.rank === tripsRank);
+    const pairCards = sorted.filter((c) => c.rank === pairRank);
     return {
       category: HandCategory.FULL_HOUSE,
       categoryName: 'Full House',
       handDescription: `Full House, ${RANK_STRINGS[tripsRank as Rank]}s full of ${RANK_STRINGS[pairRank as Rank]}s`,
       ranks: [tripsRank, pairRank],
-      best5: sorted,
+      best5: [...tripsCards, ...pairCards],
     };
   }
 
@@ -137,12 +145,16 @@ export function evaluate5Cards(cards: Card[]): EvaluatedHand {
 
   // Straight
   if (isStraight) {
+    const best5Cards =
+      straightHighRank === 5 && sorted[0].rank === 14
+        ? [...sorted.slice(1), sorted[0]]
+        : sorted;
     return {
       category: HandCategory.STRAIGHT,
       categoryName: 'Straight',
       handDescription: `Straight, ${RANK_STRINGS[straightHighRank as Rank]} High`,
       ranks: [straightHighRank],
-      best5: sorted,
+      best5: best5Cards,
     };
   }
 
@@ -151,12 +163,14 @@ export function evaluate5Cards(cards: Card[]): EvaluatedHand {
     const tripsRank = groups[0].rank;
     const kicker1 = groups[1].rank;
     const kicker2 = groups[2].rank;
+    const tripsCards = sorted.filter((c) => c.rank === tripsRank);
+    const kickerCards = sorted.filter((c) => c.rank !== tripsRank);
     return {
       category: HandCategory.THREE_OF_A_KIND,
       categoryName: 'Three of a Kind',
       handDescription: `Three of a Kind, ${RANK_STRINGS[tripsRank as Rank]}s`,
       ranks: [tripsRank, kicker1, kicker2],
-      best5: sorted,
+      best5: [...tripsCards, ...kickerCards],
     };
   }
 
@@ -165,12 +179,15 @@ export function evaluate5Cards(cards: Card[]): EvaluatedHand {
     const highPair = groups[0].rank;
     const lowPair = groups[1].rank;
     const kicker = groups[2].rank;
+    const highPairCards = sorted.filter((c) => c.rank === highPair);
+    const lowPairCards = sorted.filter((c) => c.rank === lowPair);
+    const kickerCards = sorted.filter((c) => c.rank === kicker);
     return {
       category: HandCategory.TWO_PAIR,
       categoryName: 'Two Pair',
       handDescription: `Two Pair, ${RANK_STRINGS[highPair as Rank]}s and ${RANK_STRINGS[lowPair as Rank]}s`,
       ranks: [highPair, lowPair, kicker],
-      best5: sorted,
+      best5: [...highPairCards, ...lowPairCards, ...kickerCards],
     };
   }
 
@@ -178,12 +195,14 @@ export function evaluate5Cards(cards: Card[]): EvaluatedHand {
   if (groups[0].count === 2) {
     const pairRank = groups[0].rank;
     const kickers = [groups[1].rank, groups[2].rank, groups[3].rank];
+    const pairCards = sorted.filter((c) => c.rank === pairRank);
+    const kickerCards = sorted.filter((c) => c.rank !== pairRank);
     return {
       category: HandCategory.ONE_PAIR,
       categoryName: 'One Pair',
       handDescription: `One Pair of ${RANK_STRINGS[pairRank as Rank]}s`,
       ranks: [pairRank, ...kickers],
-      best5: sorted,
+      best5: [...pairCards, ...kickerCards],
     };
   }
 

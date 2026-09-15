@@ -311,23 +311,96 @@ export const ShowdownBanner: React.FC<ShowdownBannerProps> = ({
                   </h2>
 
                   {/* Detail on How They Won */}
-                  <div className="text-xs sm:text-sm font-bold text-amber-100/90 mt-0.5 bg-black/40 px-3 py-1 rounded-lg border border-amber-500/20 z-10">
+                  <div className="text-xs sm:text-sm font-bold text-amber-100/90 mt-0.5 bg-black/40 px-3 py-1 rounded-lg border border-amber-500/20 z-10 font-mono">
                     {winner.handName}
                   </div>
 
-                  {/* ── WINNING CARDS VISIBLE ── */}
-                  {winner.winningCards && winner.winningCards.length > 0 && (
-                    <div className="flex flex-col items-center gap-1.5 mt-3 z-10">
-                      <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-amber-400/90">
-                        Winning Cards
-                      </span>
-                      <div className="flex items-center gap-1.5 p-2 bg-black/60 rounded-2xl border border-zinc-800 shadow-inner">
-                        {winner.winningCards.map((c, i) => (
-                          <CardView key={i} card={c} size="md" isHighlighted />
-                        ))}
+                  {/* Plain English Poker Rule Explanation Pill */}
+                  {(() => {
+                    const holeCards = winner.holeCards || (winnerPlayer?.holeCards ? (winnerPlayer.holeCards.filter(c => 'suit' in c) as any[]) : []);
+                    const winningCards = winner.winningCards || [];
+                    let explanation = 'Hand complete.';
+                    if (
+                      winner.handName.toLowerCase().includes('default') ||
+                      winner.handName.toLowerCase().includes('folded')
+                    ) {
+                      explanation = 'All opponents folded before showdown. Won uncontested.';
+                    } else if (holeCards.length > 0 && winningCards.length > 0) {
+                      const pocketCount = winningCards.filter((wc) =>
+                        holeCards.some((hc: any) => hc.rank === wc.rank && hc.suit === wc.suit)
+                      ).length;
+                      const boardCount = winningCards.length - pocketCount;
+                      if (pocketCount === 2) {
+                        explanation = `Uses both pocket cards + ${boardCount} cards from the river board.`;
+                      } else if (pocketCount === 1) {
+                        explanation = `Uses 1 pocket card + ${boardCount} cards from the river board.`;
+                      } else if (pocketCount === 0) {
+                        explanation = `Plays the board! Uses all 5 community cards from the river.`;
+                      }
+                    }
+
+                    return (
+                      <div className="mt-2 px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-[11px] text-emerald-300 font-mono flex items-center gap-1.5 z-10">
+                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+                        <span>{explanation}</span>
                       </div>
-                    </div>
-                  )}
+                    );
+                  })()}
+
+                  {/* ── CARD BREAKDOWN: POCKET & WINNING 5 CARDS ── */}
+                  <div className="w-full flex flex-col items-center gap-2.5 mt-3 z-10">
+                    {/* 1. Winning 5-Card Hand (Golden Spotlight) */}
+                    {winner.winningCards && winner.winningCards.length > 0 && (
+                      <div className="flex flex-col items-center gap-1">
+                        <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-amber-300">
+                          Winning 5-Card Hand ({winner.handName})
+                        </span>
+                        <div className="flex items-center gap-1.5 p-2 bg-black/70 rounded-2xl border border-amber-500/40 shadow-inner">
+                          {winner.winningCards.map((c, i) => (
+                            <CardView key={i} card={c} size="md" isHighlighted />
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* 2. What they had (Pocket) vs River Board Cards */}
+                    {(() => {
+                      const holeCards = winner.holeCards || (winnerPlayer?.holeCards ? (winnerPlayer.holeCards.filter(c => 'suit' in c) as any[]) : []);
+                      const communityCards = result.communityCards || [];
+
+                      return (
+                        <div className="w-full grid grid-cols-1 sm:grid-cols-2 gap-2 mt-1 text-left">
+                          {holeCards.length > 0 && (
+                            <div className="p-2 bg-black/50 rounded-xl border border-zinc-800">
+                              <div className="flex items-center justify-between text-[9px] font-mono font-bold uppercase tracking-wider text-amber-400 mb-1">
+                                <span>Pocket (What they had)</span>
+                                <span className="text-zinc-500">2 Cards</span>
+                              </div>
+                              <div className="flex items-center gap-1">
+                                {holeCards.map((c: any, i: number) => (
+                                  <CardView key={i} card={c} size="sm" />
+                                ))}
+                              </div>
+                            </div>
+                          )}
+
+                          {communityCards.length > 0 && (
+                            <div className="p-2 bg-black/50 rounded-xl border border-zinc-800">
+                              <div className="flex items-center justify-between text-[9px] font-mono font-bold uppercase tracking-wider text-zinc-400 mb-1">
+                                <span>River Board (In River)</span>
+                                <span className="text-amber-400">{communityCards.length} Cards</span>
+                              </div>
+                              <div className="flex items-center gap-1 flex-wrap">
+                                {communityCards.map((c: any, i: number) => (
+                                  <CardView key={i} card={c} size="sm" />
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })()}
+                  </div>
 
                   {/* New Chip Stack */}
                   <div className="mt-3 px-3.5 py-1 bg-zinc-950 rounded-full border border-zinc-800 text-zinc-300 font-mono text-xs flex items-center gap-2 z-10">
