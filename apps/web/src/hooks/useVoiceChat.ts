@@ -13,13 +13,23 @@ interface PeerConnection {
   stream?: MediaStream;
 }
 
-// Multi-network ICE servers (Google STUN + Cloudflare STUN)
+// Multi-network ICE servers (Google STUN + Cloudflare STUN + Metered OpenRelay TURN for strict NATs / Mobile cellular)
 const ICE_SERVERS: RTCConfiguration = {
   iceServers: [
     { urls: 'stun:stun.l.google.com:19302' },
     { urls: 'stun:stun1.l.google.com:19302' },
     { urls: 'stun:stun2.l.google.com:19302' },
     { urls: 'stun:stun.cloudflare.com:3478' },
+    { urls: 'stun:openrelay.metered.ca:80' },
+    {
+      urls: [
+        'turn:openrelay.metered.ca:80',
+        'turn:openrelay.metered.ca:443',
+        'turn:openrelay.metered.ca:443?transport=tcp',
+      ],
+      username: 'openrelay',
+      credential: 'openrelay',
+    },
   ],
 };
 
@@ -285,27 +295,9 @@ export function useVoiceChat(socket: Socket | null, roomCode?: string, _myPlayer
         ignoreOffer: false,
       };
 
-      // Add audio transceiver or attach live microphone track if already acquired
-      try {
-        const liveTrack = localStreamRef.current?.getAudioTracks().find((t) => t.readyState === 'live');
-        if (liveTrack && localStreamRef.current) {
-          peerEntry.transceiver = pc.addTransceiver(liveTrack, {
-            direction: 'sendrecv',
-            streams: [localStreamRef.current],
-          });
-        } else {
-          // Pre-allocate audio transceiver in sendrecv mode without synthetic WebAudio tracks
-          peerEntry.transceiver = pc.addTransceiver('audio', {
-            direction: 'sendrecv',
-          });
-        }
-      } catch (e) {
-        console.warn('addTransceiver note:', e);
-      }
-
       peersRef.current.set(peerSocketId, peerEntry);
 
-      // W3C Perfect Negotiation: onnegotiationneeded handles offer creation
+      // 1. Attach event listeners FIRST before adding any transceivers or tracks
       pc.onnegotiationneeded = async () => {
         try {
           peerEntry.makingOffer = true;
@@ -323,7 +315,6 @@ export function useVoiceChat(socket: Socket | null, roomCode?: string, _myPlayer
         }
       };
 
-      // Handle ICE candidates
       pc.onicecandidate = (event) => {
         if (event.candidate && socketRef.current) {
           socketRef.current.emit('voice:signal', {
@@ -333,7 +324,6 @@ export function useVoiceChat(socket: Socket | null, roomCode?: string, _myPlayer
         }
       };
 
-      // Handle incoming remote audio stream
       pc.ontrack = (event) => {
         const remoteStream = (event.streams && event.streams[0]) || new MediaStream([event.track]);
         peerEntry.stream = remoteStream;
@@ -350,7 +340,6 @@ export function useVoiceChat(socket: Socket | null, roomCode?: string, _myPlayer
         }
       };
 
-      // Connection health & ice restart
       pc.onconnectionstatechange = () => {
         if (pc.connectionState === 'failed') {
           console.warn('WebRTC connection failed with peer, restarting ICE:', peerSocketId);
@@ -359,6 +348,38 @@ export function useVoiceChat(socket: Socket | null, roomCode?: string, _myPlayer
           } catch (e) {}
         }
       };
+
+      // 2. Pre-allocate audio transceiver in sendrecv mode
+      try {
+        const liveTrack = localStreamRef.current?.getAudioTracks().find((t) => t.readyState === 'live');
+        if (liveTrack && localStreamRef.current) {
+          peerEntry.transceiver = pc.addTransceiver(liveTrack, {
+            direction: 'sendrecv',
+            streams: [localStreamRef.current],
+          });
+        } else {
+          peerEntry.transceiver = pc.addTransceiver('audio', {
+            direction: 'sendrecv',
+          });
+        }
+      } catch (e) {
+        console.warn('addTransceiver note:', e);
+      }
+
+      // 3. If initiator, guarantee initial offer is created and dispatched immediately
+      if (initiator) {
+        pc.createOffer()
+          .then((offer) => pc.setLocalDescription(offer))
+          .then(() => {
+            if (socketRef.current && pc.localDescription) {
+              socketRef.current.emit('voice:signal', {
+                toSocketId: peerSocketId,
+                signal: { description: pc.localDescription },
+              });
+            }
+          })
+          .catch((err) => console.warn('Initiator initial offer error:', err));
+      }
 
       return pc;
     },
@@ -569,7 +590,7 @@ export function useVoiceChat(socket: Socket | null, roomCode?: string, _myPlayer
         } else if (candidate) {
           try {
             if (peer.hasRemoteDescription && pc.remoteDescription) {
-              await pc.addIceCandidate(new RTCIceCandidate(candidate));
+              await pc.addIceCandidate(candidate);
             } else {
               peer.candidateQueue.push(candidate);
             }

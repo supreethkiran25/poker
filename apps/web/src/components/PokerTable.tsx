@@ -80,7 +80,20 @@ export const PokerTable: React.FC<PokerTableProps> = ({
   const [showRebuy, setShowRebuy] = useState(false);
   const [showShowdown, setShowShowdown] = useState(true);
   const [secondsRemaining, setSecondsRemaining] = useState<number | null>(null);
-  const [isMobilePortrait, setIsMobilePortrait] = useState(() => window.innerWidth < 640);
+  const [layoutMode, setLayoutMode] = useState<'mobile' | 'tablet' | 'desktop'>(() => {
+    const w = typeof window !== 'undefined' ? window.innerWidth : 1200;
+    const h = typeof window !== 'undefined' ? window.innerHeight : 800;
+    const ratio = w / h;
+    if (ratio < 1.28) {
+      return w < 640 ? 'mobile' : 'tablet';
+    }
+    return 'desktop';
+  });
+
+  const isPortrait = layoutMode === 'mobile' || layoutMode === 'tablet';
+  const isTablet = layoutMode === 'tablet';
+  const isMobilePortrait = layoutMode === 'mobile';
+
   const [copiedCode, setCopiedCode] = useState(false);
   const [copiedToast, setCopiedToast] = useState(false);
 
@@ -118,7 +131,14 @@ export const PokerTable: React.FC<PokerTableProps> = ({
 
   useEffect(() => {
     const handleResize = () => {
-      setIsMobilePortrait(window.innerWidth < 640 && window.innerHeight > window.innerWidth);
+      const w = window.innerWidth;
+      const h = window.innerHeight;
+      const ratio = w / h;
+      if (ratio < 1.28) {
+        setLayoutMode(w < 640 ? 'mobile' : 'tablet');
+      } else {
+        setLayoutMode('desktop');
+      }
     };
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
@@ -175,8 +195,8 @@ export const PokerTable: React.FC<PokerTableProps> = ({
     const angleDeg = totalOpponents === 1 ? 270 : startAngle + (oppIdx + 1) * step;
     const angleRad = (angleDeg * Math.PI) / 180;
 
-    const rx = isMobilePortrait ? 41 : 44;
-    const ry = isMobilePortrait ? 43 : 38;
+    const rx = isPortrait ? (isTablet ? 42 : 40) : 44;
+    const ry = isPortrait ? (isTablet ? 44 : 45) : 38;
     const left = 50 + rx * Math.cos(angleRad);
     const top = 50 + ry * Math.sin(angleRad);
 
@@ -338,17 +358,24 @@ export const PokerTable: React.FC<PokerTableProps> = ({
         <div
           className="poker-table-outer-rail relative transition-all duration-300"
           style={
-            isMobilePortrait
-              ? {
-                  width: 'min(94vw, 420px)',
-                  height: 'min(62vh, 520px)',
-                  maxHeight: 'calc(100dvh - 170px)',
-                  borderRadius: '120px',
-                }
+            isPortrait
+              ? isTablet
+                ? {
+                    width: 'min(92vw, 680px)',
+                    height: 'min(70vh, 760px)',
+                    maxHeight: 'calc(100dvh - 180px)',
+                    borderRadius: '190px',
+                  }
+                : {
+                    width: 'min(94vw, 420px)',
+                    height: 'min(64vh, 540px)',
+                    maxHeight: 'calc(100dvh - 170px)',
+                    borderRadius: '130px',
+                  }
               : {
                   width: '100%',
-                  aspectRatio: '1.72 / 1',
-                  maxWidth: 'min(96vw, calc((100dvh - 180px) * 1.72))',
+                  aspectRatio: '1.74 / 1',
+                  maxWidth: 'min(96vw, calc((100dvh - 180px) * 1.74))',
                   maxHeight: 'calc(100dvh - 180px)',
                   borderRadius: '9999px',
                 }
@@ -357,12 +384,16 @@ export const PokerTable: React.FC<PokerTableProps> = ({
           {/* Inner Woven Green Felt Surface */}
           <div
             className="poker-felt-surface w-full h-full relative"
-            style={{ borderRadius: isMobilePortrait ? '110px' : '9999px' }}
+            style={{
+              borderRadius: isPortrait ? (isTablet ? '175px' : '118px') : '9999px',
+            }}
           >
             {/* Racetrack betting line */}
             <div
               className="poker-betting-line"
-              style={{ borderRadius: isMobilePortrait ? '95px' : '9999px' }}
+              style={{
+                borderRadius: isPortrait ? (isTablet ? '160px' : '102px') : '9999px',
+              }}
             />
 
             {/* PokerCircle Watermark in Center */}
@@ -394,7 +425,7 @@ export const PokerTable: React.FC<PokerTableProps> = ({
               className="absolute z-20 flex flex-col items-center gap-1.5 sm:gap-2 pointer-events-auto"
               style={{
                 left: '50%',
-                top: isMobilePortrait ? '40%' : '37%',
+                top: isPortrait ? (isTablet ? '38%' : '39%') : '37%',
                 transform: 'translate(-50%, -50%)',
               }}
             >
@@ -434,7 +465,6 @@ export const PokerTable: React.FC<PokerTableProps> = ({
               )}
             </div>
 
-            {/* ── Player's Hole Cards on the Felt (in front of seat) ── */}
             {/* ── Player's Hole Cards on the Felt (Remains visible even after folding) ── */}
             {me && me.holeCards && me.holeCards.length > 0 && (
               <div
@@ -443,7 +473,7 @@ export const PokerTable: React.FC<PokerTableProps> = ({
                 }`}
                 style={{
                   left: '50%',
-                  top: isMobilePortrait ? '78%' : '74%',
+                  top: isPortrait ? (isTablet ? '68%' : '71%') : '73%',
                   transform: 'translate(-50%, -50%)',
                 }}
               >
@@ -451,7 +481,7 @@ export const PokerTable: React.FC<PokerTableProps> = ({
                   <CardView
                     key={idx}
                     card={c}
-                    size={isMobilePortrait ? 'sm' : 'md'}
+                    size={isTablet || !isPortrait ? 'md' : 'sm'}
                     dealDelayMs={idx * 140}
                     isInteractive={!me.hasFolded}
                     tiltDeg={idx === 0 ? -4 : 4}
@@ -471,7 +501,7 @@ export const PokerTable: React.FC<PokerTableProps> = ({
                 className="absolute z-25 pointer-events-auto"
                 style={{
                   left: '50%',
-                  top: isMobilePortrait ? '90%' : '88%',
+                  top: isPortrait ? (isTablet ? '89%' : '90%') : '87%',
                   transform: 'translate(-50%, -50%)',
                 }}
               >
