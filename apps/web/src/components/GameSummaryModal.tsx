@@ -1,5 +1,5 @@
 import React from 'react';
-import { X, Trophy, ArrowRight, RotateCcw, Home, Sparkles, Shield } from 'lucide-react';
+import { X, ArrowLeft, Trophy, ArrowRight, RotateCcw, Home, Sparkles, Shield } from 'lucide-react';
 import { formatRupee, VIRTUAL_CURRENCY_DISCLAIMER } from '@poker/shared';
 
 export interface PlayerSummary {
@@ -41,14 +41,21 @@ export const GameSummaryModal: React.FC<GameSummaryModalProps> = ({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 backdrop-blur-md p-4 animate-fade-in overflow-y-auto">
       <div className="bg-zinc-950 border border-zinc-800 rounded-3xl p-6 sm:p-8 max-w-3xl w-full shadow-2xl relative my-auto flex flex-col gap-5">
-        {/* Top Header */}
+        {/* Top Header with Back button */}
         <div className="flex items-center justify-between pb-4 border-b border-zinc-800/80">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-2xl bg-amber-500/20 border border-amber-500/40 text-amber-400 flex items-center justify-center font-bold text-lg shadow-lg">
+            <button
+              onClick={onClose}
+              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-zinc-900 hover:bg-zinc-800 border border-zinc-700/80 text-xs font-bold text-zinc-300 hover:text-white transition active:scale-95"
+            >
+              <ArrowLeft className="w-4 h-4 text-amber-400" />
+              <span>Back</span>
+            </button>
+            <div className="w-9 h-9 rounded-2xl bg-amber-500/20 border border-amber-500/40 text-amber-400 flex items-center justify-center font-bold text-base shadow-lg">
               🏆
             </div>
             <div>
-              <h2 className="text-xl font-bold text-white tracking-tight">Session Complete</h2>
+              <h2 className="text-base sm:text-xl font-bold text-white tracking-tight">Session Complete</h2>
               <div className="text-xs text-zinc-400 font-mono">Here's how everyone did.</div>
             </div>
           </div>

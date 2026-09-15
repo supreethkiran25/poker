@@ -31,6 +31,7 @@ export function App() {
     rebuyChips,
     readyForNextHand,
     dealNextHand,
+    updateRoomConfig,
     tableAlerts,
     socket,
   } = useSocket();
@@ -129,6 +130,7 @@ export function App() {
           onRebuyChips={rebuyChips}
           onReadyForNextHand={readyForNextHand}
           onDealNextHand={dealNextHand}
+          onUpdateConfig={updateRoomConfig}
           unreadChatCount={chatMessages.length}
         />
       )}

@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { X, History, Shield, ArrowUpRight } from 'lucide-react';
+import { X, ArrowLeft, History, Shield, ArrowUpRight } from 'lucide-react';
 import { CardView } from './CardView.js';
 import { formatRupee, VIRTUAL_CURRENCY_DISCLAIMER } from '@poker/shared';
 
@@ -40,13 +40,22 @@ export const HandHistoryModal: React.FC<HandHistoryModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 backdrop-blur-md p-4 animate-fade-in overflow-y-auto">
-      <div className="bg-zinc-950 border border-zinc-800 rounded-3xl p-5 sm:p-7 max-w-xl w-full shadow-2xl flex flex-col max-h-[85vh]">
-        {/* Top Header matching Screen 7 */}
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 backdrop-blur-md p-3 sm:p-4 animate-fade-in overflow-y-auto">
+      <div className="bg-zinc-950 border border-zinc-800 rounded-3xl p-4 sm:p-7 max-w-xl w-full shadow-2xl flex flex-col max-h-[88vh]">
+        {/* Top Header with Back button */}
         <div className="flex items-center justify-between pb-3 border-b border-zinc-800/80 flex-shrink-0">
-          <div className="flex items-center gap-2 text-white font-bold">
-            <History className="w-5 h-5 text-amber-400" />
-            <h3 className="text-lg">Hand History</h3>
+          <div className="flex items-center gap-2.5">
+            <button
+              onClick={onClose}
+              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-zinc-900 hover:bg-zinc-800 border border-zinc-700/80 text-xs font-bold text-zinc-300 hover:text-white transition active:scale-95"
+            >
+              <ArrowLeft className="w-4 h-4 text-amber-400" />
+              <span>Back</span>
+            </button>
+            <div className="flex items-center gap-2 text-white font-bold">
+              <History className="w-4 h-4 text-amber-400" />
+              <h3 className="text-base sm:text-lg">Hand History</h3>
+            </div>
           </div>
           <button
             onClick={onClose}
@@ -145,6 +154,17 @@ export const HandHistoryModal: React.FC<HandHistoryModalProps> = ({
               );
             })
           )}
+        </div>
+
+        {/* Footer with Back to Table Button */}
+        <div className="pt-3 border-t border-zinc-800/80 flex-shrink-0">
+          <button
+            onClick={onClose}
+            className="w-full py-2.5 bg-zinc-900 hover:bg-zinc-800 text-zinc-300 hover:text-white text-xs font-mono font-bold rounded-2xl border border-zinc-800 transition flex items-center justify-center gap-1.5 active:scale-95"
+          >
+            <ArrowLeft className="w-3.5 h-3.5 text-amber-400" />
+            <span>Back to Table</span>
+          </button>
         </div>
       </div>
     </div>

@@ -7,6 +7,7 @@ import {
   Trophy,
   Shield,
   X,
+  ArrowLeft,
   Check,
   Play,
   Pause,
@@ -217,15 +218,15 @@ export const ShowdownBanner: React.FC<ShowdownBannerProps> = ({
             </div>
           </div>
 
-          {/* Action buttons: Minimize to felt */}
+          {/* Action buttons: Back to table felt */}
           <div className="flex items-center gap-1.5">
             <button
               onClick={() => setIsMinimized(true)}
-              className="px-2.5 py-1 rounded-xl bg-zinc-900 hover:bg-zinc-800 text-zinc-300 hover:text-white border border-zinc-700/80 transition text-xs font-mono flex items-center gap-1"
-              title="Minimize to view table felt"
+              className="px-2.5 py-1.5 rounded-xl bg-zinc-900 hover:bg-zinc-800 text-zinc-300 hover:text-white border border-zinc-700/80 transition text-xs font-bold flex items-center gap-1.5 active:scale-95"
+              title="Back to view table felt"
             >
-              <Eye className="w-3.5 h-3.5 text-amber-400" />
-              <span className="text-[10px] font-bold">View Table</span>
+              <ArrowLeft className="w-3.5 h-3.5 text-amber-400" />
+              <span className="text-[11px] font-bold">Back to Table</span>
             </button>
 
             {onClose && (

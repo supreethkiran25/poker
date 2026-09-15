@@ -3,6 +3,7 @@ import type {
   GamePublicState,
   RoomPublicState,
   ActionType,
+  RoomConfig,
 } from '@poker/shared';
 import { formatRupee, VIRTUAL_CURRENCY_DISCLAIMER } from '@poker/shared';
 import { PlayerSeat } from './PlayerSeat.js';
@@ -48,6 +49,7 @@ interface PokerTableProps {
   onRebuyChips?: (amount?: number) => void;
   onReadyForNextHand?: (ready: boolean) => void;
   onDealNextHand?: () => void;
+  onUpdateConfig?: (config: Partial<RoomConfig>) => void;
   unreadChatCount?: number;
 }
 
@@ -66,6 +68,7 @@ export const PokerTable: React.FC<PokerTableProps> = ({
   onRebuyChips,
   onReadyForNextHand,
   onDealNextHand,
+  onUpdateConfig,
   unreadChatCount = 0,
 }) => {
   const [showSummary, setShowSummary] = useState(false);
@@ -246,10 +249,10 @@ export const PokerTable: React.FC<PokerTableProps> = ({
             <Trophy className="w-4 h-4 text-amber-400" />
           </button>
 
-          {/* Hand History */}
+          {/* Hand History (Available on both desktop & mobile) */}
           <button
             onClick={() => setShowHistory(true)}
-            className="p-2 bg-zinc-900 hover:bg-zinc-800 text-zinc-300 rounded-xl border border-zinc-800 transition hidden sm:flex"
+            className="p-2 bg-zinc-900 hover:bg-zinc-800 text-zinc-300 rounded-xl border border-zinc-800 transition flex items-center"
             title="Hand History"
           >
             <History className="w-4 h-4 text-amber-400" />
@@ -377,10 +380,12 @@ export const PokerTable: React.FC<PokerTableProps> = ({
             </div>
 
             {/* ── Player's Hole Cards on the Felt (in front of seat) ── */}
-            {/* ── Player's Hole Cards on the Felt (Cleanly positioned above seat) ── */}
-            {me && me.holeCards && me.holeCards.length > 0 && !me.hasFolded && (
+            {/* ── Player's Hole Cards on the Felt (Remains visible even after folding) ── */}
+            {me && me.holeCards && me.holeCards.length > 0 && (
               <div
-                className="absolute z-20 flex items-center -space-x-1 sm:space-x-1 pointer-events-auto"
+                className={`absolute z-20 flex items-center -space-x-1 sm:space-x-1 pointer-events-auto transition-all duration-300 ${
+                  me.hasFolded ? 'opacity-40 grayscale-[60%] scale-90' : 'opacity-100'
+                }`}
                 style={{
                   left: '50%',
                   top: isMobilePortrait ? '78%' : '74%',
@@ -393,10 +398,15 @@ export const PokerTable: React.FC<PokerTableProps> = ({
                     card={c}
                     size={isMobilePortrait ? 'sm' : 'md'}
                     dealDelayMs={idx * 140}
-                    isInteractive={true}
+                    isInteractive={!me.hasFolded}
                     tiltDeg={idx === 0 ? -4 : 4}
                   />
                 ))}
+                {me.hasFolded && (
+                  <div className="absolute -top-3 left-1/2 -translate-x-1/2 z-30 px-2 py-0.5 rounded-full bg-zinc-950/90 border border-zinc-700 text-[9px] font-mono font-bold text-zinc-400 uppercase tracking-widest pointer-events-none whitespace-nowrap shadow-md">
+                    Folded
+                  </div>
+                )}
               </div>
             )}
 
@@ -510,6 +520,7 @@ export const PokerTable: React.FC<PokerTableProps> = ({
         onRebuy={handleRebuySubmit}
         onLeave={onLeaveRoom}
         isOpen={showRebuy}
+        onClose={() => setShowRebuy(false)}
       />
 
       {/* ══ HAND HISTORY MODAL ══ */}
@@ -526,9 +537,21 @@ export const PokerTable: React.FC<PokerTableProps> = ({
       {/* ══ TABLE SETTINGS MODAL ══ */}
       {showSettings && (
         <TableSettingsModal
+          roomCode={roomState.code}
+          isHost={isHost}
+          currentTurnTimer={gameState.turnDuration}
           isVoiceActive={isVoiceActive}
           isMuted={isMuted}
           onToggleMute={onToggleMute || (() => {})}
+          onUpdateConfig={onUpdateConfig}
+          onOpenHistory={() => {
+            setShowSettings(false);
+            setShowHistory(true);
+          }}
+          onOpenRules={() => {
+            setShowSettings(false);
+            setShowRules(true);
+          }}
           onClose={() => setShowSettings(false)}
         />
       )}

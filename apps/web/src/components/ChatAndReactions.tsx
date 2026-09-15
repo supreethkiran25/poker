@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import type { ChatMessage, ReactionItem } from '@poker/shared';
-import { MessageSquare, Send, X, Smile } from 'lucide-react';
+import { MessageSquare, Send, X, ArrowLeft, Smile } from 'lucide-react';
 
 interface ChatAndReactionsProps {
   messages: ChatMessage[];
@@ -59,12 +59,19 @@ export const ChatAndReactions: React.FC<ChatAndReactionsProps> = ({
             className="bg-zinc-950 border border-zinc-800 rounded-t-3xl sm:rounded-3xl shadow-2xl flex flex-col overflow-hidden w-full sm:w-80 sm:mr-4 sm:mb-4 h-[75vh] sm:h-[500px]"
             onClick={(e) => e.stopPropagation()}
           >
-            {/* Header */}
-            <div className="flex items-center justify-between px-4 py-3 border-b border-zinc-800 bg-zinc-900/60 flex-shrink-0">
+            {/* Header with Back Button */}
+            <div className="flex items-center justify-between px-3 py-2.5 border-b border-zinc-800 bg-zinc-900/60 flex-shrink-0">
               <div className="flex items-center gap-2">
-                <MessageSquare className="w-4 h-4 text-amber-400" />
-                <span className="text-xs font-bold text-zinc-100 tracking-wider uppercase">
-                  Table Chat & Emojis
+                <button
+                  onClick={onClose}
+                  className="flex items-center gap-1 px-2 py-1 rounded-lg bg-zinc-900 hover:bg-zinc-800 border border-zinc-700/80 text-xs font-bold text-zinc-300 hover:text-white transition active:scale-95"
+                >
+                  <ArrowLeft className="w-3.5 h-3.5 text-amber-400" />
+                  <span>Back</span>
+                </button>
+                <span className="text-xs font-bold text-zinc-100 tracking-wider uppercase flex items-center gap-1.5">
+                  <MessageSquare className="w-3.5 h-3.5 text-amber-400" />
+                  <span>Chat & Emojis</span>
                 </span>
               </div>
               <button

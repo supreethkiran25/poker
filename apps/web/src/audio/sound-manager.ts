@@ -26,6 +26,11 @@ class SoundManager {
     return this.isMuted;
   }
 
+  public setMuted(muted: boolean): void {
+    this.isMuted = muted;
+    localStorage.setItem('poker_muted', String(this.isMuted));
+  }
+
   public getMuted(): boolean {
     return this.isMuted;
   }

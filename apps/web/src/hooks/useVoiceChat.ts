@@ -28,6 +28,15 @@ const ICE_SERVERS: RTCConfiguration = {
   iceCandidatePoolSize: 2,
 };
 
+// Tune SDP to enable Opus in-band Forward Error Correction (FEC) & optimal voice bitrates
+function tuneSdp(sdp: string): string {
+  if (!sdp) return sdp;
+  return sdp.replace(/a=fmtp:(\d+) (.*)/g, (match, _pt, params) => {
+    if (params.includes('useinbandfec')) return match;
+    return `${match};useinbandfec=1;maxaveragebitrate=32000;stereo=0;sprop-stereo=0`;
+  });
+}
+
 function getAudioContainer(): HTMLElement {
   let container = document.getElementById('poker-voice-audio-container');
   if (!container) {
@@ -65,6 +74,27 @@ export function useVoiceChat(socket: Socket | null, roomCode?: string, _myPlayer
   const isSpeakingRef = useRef(false);
   const silenceTimerRef = useRef<NodeJS.Timeout | null>(null);
 
+  // Global user interaction unlocker for iOS Safari and mobile browsers
+  useEffect(() => {
+    const unlockAudio = () => {
+      if (audioContextRef.current && audioContextRef.current.state === 'suspended') {
+        audioContextRef.current.resume().catch(() => {});
+      }
+      peersRef.current.forEach(({ audioEl }) => {
+        if (audioEl && audioEl.paused) {
+          audioEl.play().catch(() => {});
+        }
+      });
+    };
+
+    window.addEventListener('touchstart', unlockAudio, { passive: true });
+    window.addEventListener('click', unlockAudio, { passive: true });
+    return () => {
+      window.removeEventListener('touchstart', unlockAudio);
+      window.removeEventListener('click', unlockAudio);
+    };
+  }, []);
+
   // Clean up all peer connections & audio elements
   const cleanup = useCallback(() => {
     if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
@@ -96,7 +126,7 @@ export function useVoiceChat(socket: Socket | null, roomCode?: string, _myPlayer
     setMutedPeers({});
   }, []);
 
-  // Voice Activity Detection (VAD)
+  // Voice Activity Detection (VAD) with Hysteresis & Hangover to avoid clipping speech
   const setupVAD = (stream: MediaStream) => {
     try {
       const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
@@ -104,10 +134,15 @@ export function useVoiceChat(socket: Socket | null, roomCode?: string, _myPlayer
       const ctx = new AudioCtx();
       audioContextRef.current = ctx;
 
+      // Resume if suspended on mobile
+      if (ctx.state === 'suspended') {
+        ctx.resume().catch(() => {});
+      }
+
       const source = ctx.createMediaStreamSource(stream);
       const analyser = ctx.createAnalyser();
       analyser.fftSize = 512;
-      analyser.smoothingTimeConstant = 0.4;
+      analyser.smoothingTimeConstant = 0.5;
       source.connect(analyser);
       analyserRef.current = analyser;
 
@@ -123,9 +158,12 @@ export function useVoiceChat(socket: Socket | null, roomCode?: string, _myPlayer
           sum += dataArray[i];
         }
         const average = sum / bufferLength;
-        const speechThreshold = 18;
 
-        if (average > speechThreshold && !isMutedRef.current) {
+        // Hysteresis thresholds for clean speech detection
+        const speechTriggerThreshold = 26;
+        const speechSilenceThreshold = 18;
+
+        if (average > speechTriggerThreshold && !isMutedRef.current) {
           if (!isSpeakingRef.current) {
             isSpeakingRef.current = true;
             setIsSpeaking(true);
@@ -140,7 +178,7 @@ export function useVoiceChat(socket: Socket | null, roomCode?: string, _myPlayer
             clearTimeout(silenceTimerRef.current);
             silenceTimerRef.current = null;
           }
-        } else {
+        } else if (average < speechSilenceThreshold) {
           if (isSpeakingRef.current && !silenceTimerRef.current) {
             silenceTimerRef.current = setTimeout(() => {
               isSpeakingRef.current = false;
@@ -152,7 +190,7 @@ export function useVoiceChat(socket: Socket | null, roomCode?: string, _myPlayer
                 });
               }
               silenceTimerRef.current = null;
-            }, 350);
+            }, 600);
           }
         }
 
@@ -227,10 +265,16 @@ export function useVoiceChat(socket: Socket | null, roomCode?: string, _myPlayer
         }
       };
 
-      // If initiator, create and send offer
+      // If initiator, create and send offer with tuned SDP
       if (initiator) {
         pc.createOffer({ offerToReceiveAudio: true })
-          .then((offer) => pc.setLocalDescription(offer))
+          .then((offer) => {
+            const tuned = new RTCSessionDescription({
+              type: offer.type,
+              sdp: tuneSdp(offer.sdp || ''),
+            });
+            return pc.setLocalDescription(tuned);
+          })
           .then(() => {
             if (socketRef.current) {
               socketRef.current.emit('voice:signal', {
@@ -260,9 +304,11 @@ export function useVoiceChat(socket: Socket | null, roomCode?: string, _myPlayer
 
       const stream = await navigator.mediaDevices.getUserMedia({
         audio: {
-          echoCancellation: true,
-          noiseSuppression: true,
-          autoGainControl: true,
+          echoCancellation: { ideal: true },
+          noiseSuppression: { ideal: true },
+          autoGainControl: { ideal: true },
+          sampleRate: { ideal: 48000 },
+          channelCount: { ideal: 1 },
         },
         video: false,
       });
@@ -372,7 +418,12 @@ export function useVoiceChat(socket: Socket | null, roomCode?: string, _myPlayer
           }
 
           const answer = await pc.createAnswer();
-          await pc.setLocalDescription(answer);
+          const tuned = new RTCSessionDescription({
+            type: answer.type,
+            sdp: tuneSdp(answer.sdp || ''),
+          });
+          await pc.setLocalDescription(tuned);
+
           if (socketRef.current) {
             socketRef.current.emit('voice:signal', {
               toSocketId: fromSocketId,

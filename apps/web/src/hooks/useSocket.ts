@@ -160,6 +160,14 @@ export function useSocket() {
     });
   }, [roomState]);
 
+  const updateRoomConfig = useCallback((config: Partial<RoomConfig>) => {
+    if (!socketRef.current || !roomState) return;
+    socketRef.current.emit('room:update-config', {
+      roomCode: roomState.code,
+      config: { ...roomState.config, ...config },
+    });
+  }, [roomState]);
+
   const createRoom = useCallback((hostName: string, config?: RoomConfig, selectedAvatar?: string) => {
     if (!socketRef.current) return;
     const av = selectedAvatar || avatar;
@@ -270,6 +278,7 @@ export function useSocket() {
     rebuyChips,
     readyForNextHand,
     dealNextHand,
+    updateRoomConfig,
     tableAlerts,
     socket: socketRef.current,
   };

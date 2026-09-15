@@ -198,6 +198,25 @@ export function registerSocketHandlers(io: Server): void {
       broadcastRoomState(room);
     });
 
+    // 4b. Update Room Config (Host only)
+    socket.on('room:update-config', (payload: unknown) => {
+      if (!checkRateLimit()) return;
+      const parsed = UpdateConfigSchema.safeParse(payload);
+      if (!parsed.success) return;
+
+      const room = roomManager.getRoomByCode(parsed.data.roomCode);
+      if (!room || room.hostId !== sessionData.player.playerId) return;
+
+      room.config = { ...room.config, ...parsed.data.config };
+      broadcastRoomState(room);
+      broadcastGameState(room);
+      io.to(`room:${room.code}`).emit('table:alert', {
+        id: crypto.randomUUID(),
+        type: 'INFO',
+        message: '⚙️ Table settings updated by host',
+      });
+    });
+
     // 5. Start Game (Host only)
     socket.on('game:start', (payload: unknown) => {
       if (!checkRateLimit()) return;
