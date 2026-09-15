@@ -58,21 +58,22 @@ function tuneSdp(sdp: string): string {
   }
 }
 
-// Audio container: Must NOT be 'display: none' because WebKit (iOS Safari)
-// blocks/suspends audio elements in display:none subtrees.
+// Audio container: Must be in-viewport (not top: -9999px) and NOT display:none
+// because WebKit on macOS Safari & iOS will suspend off-screen / display:none media elements.
 function getAudioContainer(): HTMLElement {
   let container = document.getElementById('poker-voice-audio-container');
   if (!container) {
     container = document.createElement('div');
     container.id = 'poker-voice-audio-container';
     container.style.position = 'fixed';
-    container.style.top = '-9999px';
-    container.style.left = '-9999px';
+    container.style.bottom = '0px';
+    container.style.right = '0px';
     container.style.width = '1px';
     container.style.height = '1px';
-    container.style.opacity = '0.001';
+    container.style.opacity = '0.01';
     container.style.pointerEvents = 'none';
     container.style.zIndex = '-1';
+    container.style.overflow = 'hidden';
     document.body.appendChild(container);
   }
   return container;
@@ -142,15 +143,19 @@ export function useVoiceChat(socket: Socket | null, roomCode?: string, _myPlayer
   const isSpeakingRef = useRef(false);
   const silenceTimerRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Global user interaction unlocker for iOS Safari and mobile browsers
+  // Global user interaction unlocker for MacBook Safari, iOS Safari, and mobile browsers
   useEffect(() => {
     const unlockAudio = () => {
       if (audioContextRef.current && audioContextRef.current.state === 'suspended') {
         audioContextRef.current.resume().catch(() => {});
       }
       peersRef.current.forEach(({ audioEl }) => {
-        if (audioEl && audioEl.paused) {
-          audioEl.play().catch(() => {});
+        if (audioEl) {
+          audioEl.muted = false;
+          audioEl.volume = 1.0;
+          if (audioEl.paused) {
+            audioEl.play().catch(() => {});
+          }
         }
       });
     };
@@ -164,12 +169,14 @@ export function useVoiceChat(socket: Socket | null, roomCode?: string, _myPlayer
     window.addEventListener('touchstart', unlockAudio, { passive: true });
     window.addEventListener('pointerdown', unlockAudio, { passive: true });
     window.addEventListener('click', unlockAudio, { passive: true });
+    window.addEventListener('keydown', unlockAudio, { passive: true });
     document.addEventListener('visibilitychange', handleVisibilityChange);
 
     return () => {
       window.removeEventListener('touchstart', unlockAudio);
       window.removeEventListener('pointerdown', unlockAudio);
       window.removeEventListener('click', unlockAudio);
+      window.removeEventListener('keydown', unlockAudio);
       document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
   }, []);
@@ -283,6 +290,30 @@ export function useVoiceChat(socket: Socket | null, roomCode?: string, _myPlayer
     }
   };
 
+  // Renegotiate with a peer (e.g. when unmuting or adding/upgrading tracks)
+  const renegotiate = useCallback(async (peerSocketId: string) => {
+    const peer = peersRef.current.get(peerSocketId);
+    if (!peer || !socketRef.current) return;
+    const { pc } = peer;
+
+    try {
+      if (pc.signalingState !== 'stable') return;
+      const offer = await pc.createOffer();
+      if (pc.signalingState !== 'stable') return;
+      const tuned = new RTCSessionDescription({
+        type: offer.type,
+        sdp: tuneSdp(offer.sdp || ''),
+      });
+      await pc.setLocalDescription(tuned);
+      socketRef.current.emit('voice:signal', {
+        toSocketId: peerSocketId,
+        signal: { type: 'offer', sdp: pc.localDescription },
+      });
+    } catch (err) {
+      console.warn('Renegotiation failed for peer:', peerSocketId, err);
+    }
+  }, []);
+
   // Create an RTCPeerConnection for a remote socket
   const createPeer = useCallback(
     (peerSocketId: string, _peerPlayerId: string, initiator: boolean) => {
@@ -333,6 +364,11 @@ export function useVoiceChat(socket: Socket | null, roomCode?: string, _myPlayer
       };
       peersRef.current.set(peerSocketId, peerEntry);
 
+      // Automatic renegotiation when tracks or directions change
+      pc.onnegotiationneeded = () => {
+        renegotiate(peerSocketId);
+      };
+
       // Handle ICE candidates
       pc.onicecandidate = (event) => {
         if (event.candidate && socketRef.current) {
@@ -347,9 +383,14 @@ export function useVoiceChat(socket: Socket | null, roomCode?: string, _myPlayer
       pc.ontrack = (event) => {
         const stream = (event.streams && event.streams[0]) || new MediaStream([event.track]);
         audioEl.srcObject = stream;
-        audioEl.play().catch((err) => {
-          console.info('Audio playback deferred until user interaction:', err);
-        });
+        audioEl.volume = 1.0;
+        audioEl.muted = false;
+        const playPromise = audioEl.play();
+        if (playPromise !== undefined) {
+          playPromise.catch((err) => {
+            console.info('Audio playback deferred on MacBook/Safari until user interaction:', err);
+          });
+        }
       };
 
       // Connection health & ice restart
@@ -385,7 +426,7 @@ export function useVoiceChat(socket: Socket | null, roomCode?: string, _myPlayer
 
       return pc;
     },
-    []
+    [renegotiate]
   );
 
   // Join Voice Call (request microphone and unmute)
@@ -394,6 +435,18 @@ export function useVoiceChat(socket: Socket | null, roomCode?: string, _myPlayer
     setMicError(null);
 
     try {
+      // User gesture unlock for audio elements on MacBook/Safari
+      peersRef.current.forEach(({ audioEl }) => {
+        if (audioEl) {
+          audioEl.muted = false;
+          audioEl.volume = 1.0;
+          audioEl.play().catch(() => {});
+        }
+      });
+      if (audioContextRef.current && audioContextRef.current.state === 'suspended') {
+        audioContextRef.current.resume().catch(() => {});
+      }
+
       const stream = await acquireMicrophoneStream();
 
       // Listen for track ending (e.g. headset unplugged, OS revocation)
@@ -418,20 +471,21 @@ export function useVoiceChat(socket: Socket | null, roomCode?: string, _myPlayer
       isMutedRef.current = false;
       setupVAD(stream);
 
-      // Attach audio track to all peer connections
+      // Attach audio track to all peer connections and immediately renegotiate
       if (track) {
-        peersRef.current.forEach(async ({ pc, transceiver }) => {
+        for (const [peerSocketId, peer] of peersRef.current.entries()) {
           try {
-            if (transceiver?.sender) {
-              await transceiver.sender.replaceTrack(track);
-              transceiver.direction = 'sendrecv';
+            if (peer.transceiver?.sender) {
+              await peer.transceiver.sender.replaceTrack(track);
+              peer.transceiver.direction = 'sendrecv';
             } else {
-              pc.addTrack(track, stream);
+              peer.pc.addTrack(track, stream);
             }
+            await renegotiate(peerSocketId);
           } catch (e) {
-            console.warn('Failed to attach track to existing peer:', e);
+            console.warn('Failed to attach track and renegotiate with peer:', peerSocketId, e);
           }
-        });
+        }
       }
 
       // Tell server we are active & unmuted

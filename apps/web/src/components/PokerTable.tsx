@@ -32,6 +32,8 @@ import {
   Play,
   ChevronLeft,
   Trophy,
+  Copy,
+  Share2,
 } from 'lucide-react';
 
 interface PokerTableProps {
@@ -79,6 +81,34 @@ export const PokerTable: React.FC<PokerTableProps> = ({
   const [showShowdown, setShowShowdown] = useState(true);
   const [secondsRemaining, setSecondsRemaining] = useState<number | null>(null);
   const [isMobilePortrait, setIsMobilePortrait] = useState(() => window.innerWidth < 640);
+  const [copiedCode, setCopiedCode] = useState(false);
+  const [copiedToast, setCopiedToast] = useState(false);
+
+  const handleCopyRoomCode = () => {
+    const url = `${window.location.origin}/room/${roomState.code}`;
+    if (navigator.clipboard) {
+      navigator.clipboard.writeText(url);
+    }
+    setCopiedCode(true);
+    setCopiedToast(true);
+    setTimeout(() => setCopiedCode(false), 2500);
+    setTimeout(() => setCopiedToast(false), 3000);
+  };
+
+  const handleShareInvite = async () => {
+    const url = `${window.location.origin}/room/${roomState.code}`;
+    if (navigator.share) {
+      try {
+        await navigator.share({
+          title: `Join my private Poker Table: ${roomState.code}`,
+          text: `Play Texas Hold'em with me on PokerCircle! Room code: ${roomState.code}`,
+          url,
+        });
+      } catch (err) {}
+    } else {
+      handleCopyRoomCode();
+    }
+  };
 
   useEffect(() => {
     if (gameState.phase === 'HAND_COMPLETE') {
@@ -184,12 +214,23 @@ export const PokerTable: React.FC<PokerTableProps> = ({
             <span>Hand #{gameState.handNumber}</span>
           </button>
 
-          <span className="text-zinc-700 hidden sm:inline">•</span>
-
-          <div className="hidden xs:flex items-center gap-1.5 px-2 py-0.5 bg-zinc-900 rounded-lg border border-zinc-800 text-[11px] font-mono flex-shrink-0">
+          {/* Always-visible Clickable Room Code & Invite Pill */}
+          <button
+            onClick={handleShareInvite}
+            className="flex items-center gap-1.5 px-2.5 py-1 bg-gradient-to-r from-amber-500/15 via-amber-600/10 to-transparent hover:from-amber-500/25 hover:to-amber-600/20 active:scale-95 rounded-lg border border-amber-500/40 text-[11px] font-mono text-amber-300 transition flex-shrink-0 shadow-sm"
+            title="Click to copy invite link / share room code"
+          >
             <span className="text-amber-400 font-bold">♠</span>
-            <span className="text-amber-300 font-bold tracking-wider">{roomState.code}</span>
-          </div>
+            <span className="font-bold tracking-wider">{roomState.code}</span>
+            {copiedCode ? (
+              <Check className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+            ) : (
+              <Copy className="w-3.5 h-3.5 text-amber-400/80 shrink-0" />
+            )}
+            <span className="text-[10px] font-sans font-semibold text-amber-300 hidden sm:inline">
+              {copiedCode ? 'Copied!' : 'Invite'}
+            </span>
+          </button>
 
           <span className="text-zinc-600 hidden md:inline">•</span>
           <span className="text-[11px] font-mono text-zinc-400 hidden md:inline">
@@ -197,8 +238,22 @@ export const PokerTable: React.FC<PokerTableProps> = ({
           </span>
         </div>
 
-        {/* Right: Mic Voice Toggle, Rebuy, Chat, Settings, Leave */}
+        {/* Right: Invite, Mic Voice Toggle, Rebuy, Chat, Settings, Leave */}
         <div className="flex items-center gap-1.5 flex-shrink-0">
+          {/* Mid-Game Invite Friends Button */}
+          <button
+            onClick={handleShareInvite}
+            className="p-2 bg-zinc-900 hover:bg-zinc-800 text-amber-400 hover:text-amber-300 rounded-xl border border-zinc-800 hover:border-amber-500/40 transition flex items-center gap-1 text-xs font-mono font-bold"
+            title="Invite Friends to Table"
+          >
+            {copiedCode ? (
+              <Check className="w-4 h-4 text-emerald-400" />
+            ) : (
+              <Share2 className="w-4 h-4 text-amber-400" />
+            )}
+            <span className="hidden md:inline">{copiedCode ? 'COPIED' : 'INVITE'}</span>
+          </button>
+
           {/* Quick Rebuy Button */}
           <button
             onClick={() => setShowRebuy(true)}
@@ -571,6 +626,14 @@ export const PokerTable: React.FC<PokerTableProps> = ({
           onClose={() => setShowSummary(false)}
           onBackToHome={onLeaveRoom}
         />
+      )}
+
+      {/* ══ COPIED INVITE LINK TOAST ══ */}
+      {copiedToast && (
+        <div className="fixed top-14 left-1/2 -translate-x-1/2 z-50 bg-amber-950/95 border border-amber-500/80 text-amber-200 text-xs font-semibold py-2 px-4 rounded-xl shadow-2xl flex items-center gap-2 animate-bounce">
+          <Check className="w-4 h-4 text-emerald-400 shrink-0" />
+          <span>Invite link copied! Share with friends to join room {roomState.code}.</span>
+        </div>
       )}
     </div>
   );
