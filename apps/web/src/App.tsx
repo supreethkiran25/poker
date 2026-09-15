@@ -92,6 +92,25 @@ export function App() {
         </div>
       )}
 
+      {/* HTTPS Notice for LAN Devices (MacBook / Phones) */}
+      {typeof window !== 'undefined' &&
+        window.isSecureContext === false &&
+        window.location.hostname !== 'localhost' &&
+        window.location.hostname !== '127.0.0.1' && (
+          <div className="fixed top-0 inset-x-0 z-50 bg-amber-500 text-zinc-950 text-xs font-bold py-1.5 px-4 flex items-center justify-center gap-2 shadow-lg">
+            <AlertCircle className="w-4 h-4 text-zinc-950 shrink-0" />
+            <span>Microphone requires HTTPS on network devices (Mac/iPhone/Android).</span>
+            <button
+              onClick={() => {
+                window.location.href = `https://${window.location.hostname}:${window.location.port || 5173}${window.location.pathname}${window.location.search}`;
+              }}
+              className="ml-2 px-2.5 py-0.5 bg-zinc-950 text-amber-400 hover:text-amber-200 rounded text-[11px] font-mono font-bold transition"
+            >
+              Switch to HTTPS
+            </button>
+          </div>
+        )}
+
       {/* Global Error Notification Toast */}
       {(errorNotification || micError) && (
         <div className="fixed top-4 left-1/2 -translate-x-1/2 z-50 bg-rose-950/95 border border-rose-500 text-rose-200 text-xs font-semibold py-2 px-4 rounded-2xl shadow-2xl flex items-center gap-2 animate-bounce">

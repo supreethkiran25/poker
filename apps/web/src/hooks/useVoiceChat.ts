@@ -8,85 +8,37 @@ interface PeerConnection {
   hasRemoteDescription: boolean;
   transceiver?: RTCRtpTransceiver;
   isPolite: boolean;
+  makingOffer: boolean;
+  ignoreOffer: boolean;
   stream?: MediaStream;
-  webAudioSource?: MediaStreamAudioSourceNode;
-  gainNode?: GainNode;
 }
 
-// Multi-network ICE servers (Google STUN + Cloudflare STUN + Free Metered OpenRelay TURN for strict NATs)
+// Multi-network ICE servers (Google STUN + Cloudflare STUN)
 const ICE_SERVERS: RTCConfiguration = {
   iceServers: [
     { urls: 'stun:stun.l.google.com:19302' },
     { urls: 'stun:stun1.l.google.com:19302' },
     { urls: 'stun:stun2.l.google.com:19302' },
     { urls: 'stun:stun.cloudflare.com:3478' },
-    {
-      urls: [
-        'turn:openrelay.metered.ca:80',
-        'turn:openrelay.metered.ca:443',
-        'turn:openrelay.metered.ca:443?transport=tcp',
-      ],
-      username: 'openrelay',
-      credential: 'openrelay',
-    },
   ],
-  iceCandidatePoolSize: 2,
 };
 
-// Global audio context shared across voice features
-let sharedAudioContext: AudioContext | null = null;
-let sharedSilentTrack: MediaStreamTrack | null = null;
-let sharedSilentStream: MediaStream | null = null;
-
-function getAudioContext(): AudioContext | null {
-  if (typeof window === 'undefined') return null;
-  const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
-  if (!AudioCtx) return null;
-  if (!sharedAudioContext || sharedAudioContext.state === 'closed') {
-    sharedAudioContext = new AudioCtx();
-  }
-  return sharedAudioContext;
-}
-
-// Generates an in-memory silent audio track without requesting microphone permissions.
-// Allows establishing active 'sendrecv' WebRTC transceivers on room join, eliminating mid-call renegotiation glare.
-function getOrCreateSilentTrack(): { track: MediaStreamTrack; stream: MediaStream } {
-  if (sharedSilentTrack && sharedSilentTrack.readyState === 'live' && sharedSilentStream) {
-    return { track: sharedSilentTrack, stream: sharedSilentStream };
-  }
-  const ctx = getAudioContext();
-  if (!ctx) {
-    throw new Error('Web Audio API is not supported on this device.');
-  }
-  const osc = ctx.createOscillator();
-  const dst = ctx.createMediaStreamDestination();
-  const gain = ctx.createGain();
-  gain.gain.value = 0; // Pure silence, zero amplitude
-  osc.connect(gain);
-  gain.connect(dst);
-  osc.start();
-
-  const track = dst.stream.getAudioTracks()[0];
-  track.enabled = true;
-  sharedSilentTrack = track;
-  sharedSilentStream = dst.stream;
-  return { track, stream: dst.stream };
-}
-
 // In-viewport, non-suspended audio container for WebKit (macOS Safari & iOS Safari)
+// Size 32x32 at opacity 0.05 prevents WebKit from classifying it as "visually idle" or "invisible",
+// which would otherwise throttle or mute the audio stream.
 function getAudioContainer(): HTMLElement {
   let container = document.getElementById('poker-voice-audio-container');
   if (!container) {
     container = document.createElement('div');
     container.id = 'poker-voice-audio-container';
     container.style.position = 'fixed';
-    container.style.bottom = '0px';
-    container.style.right = '0px';
-    container.style.width = '1px';
-    container.style.height = '1px';
-    container.style.opacity = '0.01';
+    container.style.bottom = '12px';
+    container.style.right = '12px';
+    container.style.width = '32px';
+    container.style.height = '32px';
+    container.style.opacity = '0.05';
     container.style.pointerEvents = 'none';
-    container.style.zIndex = '-1';
+    container.style.zIndex = '1';
     container.style.overflow = 'hidden';
     document.body.appendChild(container);
   }
@@ -98,7 +50,7 @@ async function acquireMicrophoneStream(): Promise<MediaStream> {
   // Check secure context
   if (typeof window !== 'undefined' && window.isSecureContext === false) {
     throw new Error(
-      'INSECURE_CONTEXT: Microphone requires HTTPS or localhost. When connecting from another device (like Mac or phone), open via HTTPS.'
+      'INSECURE_CONTEXT: Microphone requires HTTPS when connecting from another device (like Mac, iPhone, or Android). Please open via https://'
     );
   }
 
@@ -106,7 +58,7 @@ async function acquireMicrophoneStream(): Promise<MediaStream> {
     throw new Error('NOT_SUPPORTED: Microphone is not supported on this browser or platform.');
   }
 
-  // Attempt 1: Standard high-fidelity voice constraints
+  // Attempt 1: Standard high-fidelity voice constraints (Echo Cancellation, AGC, Noise Suppression)
   try {
     return await navigator.mediaDevices.getUserMedia({
       audio: {
@@ -117,13 +69,13 @@ async function acquireMicrophoneStream(): Promise<MediaStream> {
       video: false,
     });
   } catch (err: any) {
-    console.warn('getUserMedia with voice constraints rejected, trying basic fallback:', err);
+    console.warn('getUserMedia with voice constraints failed, trying minimal audio fallback:', err);
     if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
       throw err;
     }
   }
 
-  // Attempt 2: Minimal baseline fallback (AirPods, Bluetooth headsets, older Safari)
+  // Attempt 2: Minimal baseline fallback (works with AirPods, Bluetooth headsets, older Safari/Android)
   return await navigator.mediaDevices.getUserMedia({
     audio: true,
     video: false,
@@ -155,27 +107,15 @@ export function useVoiceChat(socket: Socket | null, roomCode?: string, _myPlayer
   const isSpeakingRef = useRef(false);
   const silenceTimerRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Global user gesture unlocker for MacBook Safari, iOS Safari, and mobile browsers
+  // Global user gesture unlocker for MacBook Safari, iOS Safari, and mobile browsers.
+  // When any touch, click, or key occurs, ensure all remote peer audio elements are playing.
   const unlockAllAudio = useCallback(() => {
-    const ctx = getAudioContext();
-    if (ctx && ctx.state === 'suspended') {
-      ctx.resume().catch(() => {});
-    }
-    peersRef.current.forEach(({ audioEl, gainNode }) => {
+    peersRef.current.forEach(({ audioEl }) => {
       if (audioEl) {
         audioEl.muted = false;
         audioEl.volume = 1.0;
-        const playPromise = audioEl.play();
-        if (playPromise !== undefined) {
-          playPromise
-            .then(() => {
-              // HTMLAudioElement succeeded, mute WebAudio fallback to avoid double audio/echo
-              if (gainNode) gainNode.gain.value = 0;
-            })
-            .catch(() => {
-              // HTMLAudioElement blocked, enable WebAudio fallback
-              if (gainNode) gainNode.gain.value = 1.0;
-            });
+        if (audioEl.paused) {
+          audioEl.play().catch(() => {});
         }
       }
     });
@@ -214,10 +154,8 @@ export function useVoiceChat(socket: Socket | null, roomCode?: string, _myPlayer
     if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
     if (silenceTimerRef.current) clearTimeout(silenceTimerRef.current);
 
-    peersRef.current.forEach(({ pc, audioEl, webAudioSource, gainNode }) => {
+    peersRef.current.forEach(({ pc, audioEl }) => {
       try {
-        if (webAudioSource) webAudioSource.disconnect();
-        if (gainNode) gainNode.disconnect();
         pc.close();
         audioEl.srcObject = null;
         audioEl.remove();
@@ -239,11 +177,12 @@ export function useVoiceChat(socket: Socket | null, roomCode?: string, _myPlayer
     setMutedPeers({});
   }, []);
 
-  // Voice Activity Detection (VAD) with Hysteresis & Hangover
+  // Voice Activity Detection (VAD) for visual speaking indicator
   const setupVAD = (stream: MediaStream) => {
     try {
-      const ctx = getAudioContext();
-      if (!ctx) return;
+      const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+      if (!AudioCtx) return;
+      const ctx = new AudioCtx();
 
       if (ctx.state === 'suspended') {
         ctx.resume().catch(() => {});
@@ -269,9 +208,9 @@ export function useVoiceChat(socket: Socket | null, roomCode?: string, _myPlayer
         }
         const average = sum / bufferLength;
 
-        // Hysteresis thresholds for clean speech detection
-        const speechTriggerThreshold = 26;
-        const speechSilenceThreshold = 18;
+        // Speech detection thresholds
+        const speechTriggerThreshold = 25;
+        const speechSilenceThreshold = 16;
 
         if (average > speechTriggerThreshold && !isMutedRef.current) {
           if (!isSpeakingRef.current) {
@@ -300,7 +239,7 @@ export function useVoiceChat(socket: Socket | null, roomCode?: string, _myPlayer
                 });
               }
               silenceTimerRef.current = null;
-            }, 600);
+            }, 500);
           }
         }
 
@@ -309,11 +248,11 @@ export function useVoiceChat(socket: Socket | null, roomCode?: string, _myPlayer
 
       checkAudio();
     } catch (err) {
-      console.warn('VAD setup failed:', err);
+      console.warn('VAD setup failed (visual only):', err);
     }
   };
 
-  // Create an RTCPeerConnection for a remote socket using the pre-negotiated sendrecv pipeline
+  // Create an RTCPeerConnection for a remote peer with W3C Perfect Negotiation
   const createPeer = useCallback(
     (peerSocketId: string, _peerPlayerId: string, initiator: boolean) => {
       if (peersRef.current.has(peerSocketId)) {
@@ -333,53 +272,63 @@ export function useVoiceChat(socket: Socket | null, roomCode?: string, _myPlayer
       container.appendChild(audioEl);
 
       const mySocketId = socketRef.current?.id || '';
+      // Deterministic politeness: exactly one peer is polite, resolving collisions seamlessly
       const isPolite = mySocketId ? mySocketId < peerSocketId : !initiator;
-
-      // Determine initial track: live mic track if already unmuted, otherwise silent track
-      let initialTrack: MediaStreamTrack;
-      let initialStream: MediaStream;
-
-      const liveTrack = localStreamRef.current?.getAudioTracks().find((t) => t.readyState === 'live');
-      if (liveTrack && localStreamRef.current) {
-        initialTrack = liveTrack;
-        initialStream = localStreamRef.current;
-      } else {
-        const silent = getOrCreateSilentTrack();
-        initialTrack = silent.track;
-        initialStream = silent.stream;
-      }
-
-      // Pre-negotiate full-duplex sendrecv transceiver.
-      // This establishes the audio pipe immediately with standard SDP, avoiding mid-call renegotiation glare.
-      let transceiver: RTCRtpTransceiver | undefined;
-      try {
-        transceiver = pc.addTransceiver(initialTrack, {
-          direction: 'sendrecv',
-          streams: [initialStream],
-        });
-      } catch (e) {
-        console.warn('addTransceiver fallback to addTrack:', e);
-        try {
-          pc.addTrack(initialTrack, initialStream);
-        } catch (err) {}
-      }
 
       const peerEntry: PeerConnection = {
         pc,
         audioEl,
         candidateQueue: [],
         hasRemoteDescription: false,
-        transceiver,
         isPolite,
+        makingOffer: false,
+        ignoreOffer: false,
       };
+
+      // Add audio transceiver or attach live microphone track if already acquired
+      try {
+        const liveTrack = localStreamRef.current?.getAudioTracks().find((t) => t.readyState === 'live');
+        if (liveTrack && localStreamRef.current) {
+          peerEntry.transceiver = pc.addTransceiver(liveTrack, {
+            direction: 'sendrecv',
+            streams: [localStreamRef.current],
+          });
+        } else {
+          // Pre-allocate audio transceiver in sendrecv mode without synthetic WebAudio tracks
+          peerEntry.transceiver = pc.addTransceiver('audio', {
+            direction: 'sendrecv',
+          });
+        }
+      } catch (e) {
+        console.warn('addTransceiver note:', e);
+      }
+
       peersRef.current.set(peerSocketId, peerEntry);
+
+      // W3C Perfect Negotiation: onnegotiationneeded handles offer creation
+      pc.onnegotiationneeded = async () => {
+        try {
+          peerEntry.makingOffer = true;
+          await pc.setLocalDescription();
+          if (socketRef.current && pc.localDescription) {
+            socketRef.current.emit('voice:signal', {
+              toSocketId: peerSocketId,
+              signal: { description: pc.localDescription },
+            });
+          }
+        } catch (err) {
+          console.warn('Negotiation error for peer:', peerSocketId, err);
+        } finally {
+          peerEntry.makingOffer = false;
+        }
+      };
 
       // Handle ICE candidates
       pc.onicecandidate = (event) => {
         if (event.candidate && socketRef.current) {
           socketRef.current.emit('voice:signal', {
             toSocketId: peerSocketId,
-            signal: { type: 'candidate', candidate: event.candidate.toJSON() },
+            signal: { candidate: event.candidate.toJSON() },
           });
         }
       };
@@ -395,36 +344,9 @@ export function useVoiceChat(socket: Socket | null, roomCode?: string, _myPlayer
 
         const playPromise = audioEl.play();
         if (playPromise !== undefined) {
-          playPromise
-            .then(() => {
-              if (peerEntry.gainNode) peerEntry.gainNode.gain.value = 0;
-            })
-            .catch((err) => {
-              console.info('AudioElement play deferred (Safari/iOS):', err);
-              if (peerEntry.gainNode) peerEntry.gainNode.gain.value = 1.0;
-            });
-        }
-
-        // Dual playback pipeline: Connect to AudioContext destination as fallback for Safari/macOS
-        try {
-          const ctx = getAudioContext();
-          if (ctx) {
-            if (ctx.state === 'suspended') {
-              ctx.resume().catch(() => {});
-            }
-            if (!peerEntry.webAudioSource) {
-              const source = ctx.createMediaStreamSource(remoteStream);
-              const gainNode = ctx.createGain();
-              // Default to 0 gain if audioEl plays; raised to 1.0 if audioEl is suspended
-              gainNode.gain.value = 0;
-              source.connect(gainNode);
-              gainNode.connect(ctx.destination);
-              peerEntry.webAudioSource = source;
-              peerEntry.gainNode = gainNode;
-            }
-          }
-        } catch (e) {
-          console.warn('Web Audio destination pipeline note:', e);
+          playPromise.catch((err) => {
+            console.info('Audio playback waiting for user tap/click on Safari/iOS:', err);
+          });
         }
       };
 
@@ -437,21 +359,6 @@ export function useVoiceChat(socket: Socket | null, roomCode?: string, _myPlayer
           } catch (e) {}
         }
       };
-
-      // Initiator creates clean standard SDP offer
-      if (initiator) {
-        pc.createOffer()
-          .then((offer) => pc.setLocalDescription(offer))
-          .then(() => {
-            if (socketRef.current) {
-              socketRef.current.emit('voice:signal', {
-                toSocketId: peerSocketId,
-                signal: { type: 'offer', sdp: pc.localDescription },
-              });
-            }
-          })
-          .catch((err) => console.warn('Error creating offer:', err));
-      }
 
       return pc;
     },
@@ -479,14 +386,6 @@ export function useVoiceChat(socket: Socket | null, roomCode?: string, _myPlayer
         setIsMuted(true);
         isVoiceActiveRef.current = false;
         isMutedRef.current = true;
-        try {
-          const silent = getOrCreateSilentTrack();
-          peersRef.current.forEach((peer) => {
-            if (peer.transceiver?.sender) {
-              peer.transceiver.sender.replaceTrack(silent.track).catch(() => {});
-            }
-          });
-        } catch (e) {}
         if (socketRef.current && roomCodeRef.current) {
           socketRef.current.emit('voice:state', { roomCode: roomCodeRef.current, isMuted: true });
         }
@@ -499,30 +398,33 @@ export function useVoiceChat(socket: Socket | null, roomCode?: string, _myPlayer
       isMutedRef.current = false;
       setupVAD(stream);
 
-      // Instant hardware/RTP track replacement on all peers - zero renegotiation needed!
+      // Attach microphone track to all peer connections
       for (const [peerSocketId, peer] of peersRef.current.entries()) {
         try {
           if (peer.transceiver?.sender) {
             await peer.transceiver.sender.replaceTrack(track);
+            peer.transceiver.direction = 'sendrecv';
+          } else {
+            peer.pc.addTrack(track, stream);
           }
         } catch (e) {
-          console.warn('Failed to replaceTrack with real mic for peer:', peerSocketId, e);
+          console.warn('Failed to attach mic track to peer:', peerSocketId, e);
         }
       }
 
-      // Tell server we are active & unmuted
+      // Notify server
       socketRef.current.emit('voice:join', { roomCode: roomCodeRef.current });
       socketRef.current.emit('voice:state', { roomCode: roomCodeRef.current, isMuted: false });
     } catch (err: any) {
       console.warn('Microphone access failed:', err);
       if (err.message?.startsWith('INSECURE_CONTEXT')) {
-        setMicError('Microphone requires HTTPS on Mac/phones. Please open via https://');
+        setMicError('Microphone requires HTTPS when connecting from another device. Please open with https://');
       } else if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
         setMicError('Mic permission denied. Please allow microphone in browser settings.');
       } else if (err.name === 'NotFoundError' || err.name === 'DevicesNotFoundError') {
         setMicError('No microphone detected on this device.');
       } else if (err.name === 'NotReadableError' || err.name === 'TrackStartError') {
-        setMicError('Microphone is in use by another application.');
+        setMicError('Microphone is in use by another application or OS.');
       } else if (err.name === 'OverconstrainedError') {
         setMicError('Microphone constraints not supported by device.');
       } else {
@@ -541,6 +443,7 @@ export function useVoiceChat(socket: Socket | null, roomCode?: string, _myPlayer
 
   // Toggle Mute / Unmute
   const toggleMute = useCallback(async () => {
+    // If microphone has not yet been acquired, acquire it now on this user click
     if (!localStreamRef.current) {
       await startVoice();
       return;
@@ -554,28 +457,10 @@ export function useVoiceChat(socket: Socket | null, roomCode?: string, _myPlayer
 
     const nextMute = !isMuted;
 
-    // WebRTC standard track mute
+    // WebRTC standard hardware track mute (instant, zero renegotiation, complete silence)
     localStreamRef.current.getAudioTracks().forEach((track) => {
       track.enabled = !nextMute;
     });
-
-    // Also swap RTP track with silent track when muted for guaranteed cross-device privacy
-    if (nextMute) {
-      try {
-        const silent = getOrCreateSilentTrack();
-        peersRef.current.forEach((peer) => {
-          if (peer.transceiver?.sender) {
-            peer.transceiver.sender.replaceTrack(silent.track).catch(() => {});
-          }
-        });
-      } catch (e) {}
-    } else {
-      peersRef.current.forEach((peer) => {
-        if (peer.transceiver?.sender) {
-          peer.transceiver.sender.replaceTrack(activeTrack).catch(() => {});
-        }
-      });
-    }
 
     setIsMuted(nextMute);
     isMutedRef.current = nextMute;
@@ -596,12 +481,21 @@ export function useVoiceChat(socket: Socket | null, roomCode?: string, _myPlayer
     socket.emit('voice:join', { roomCode });
     socket.emit('voice:state', { roomCode, isMuted: true });
 
+    // Handle Socket.io reconnects: re-emit voice:join when socket reconnects
+    const handleReconnect = () => {
+      socket.emit('voice:join', { roomCode });
+      socket.emit('voice:state', { roomCode, isMuted: isMutedRef.current });
+    };
+
+    socket.on('connect', handleReconnect);
+
     return () => {
+      socket.off('connect', handleReconnect);
       socket.emit('voice:leave', { roomCode });
     };
   }, [socket, roomCode]);
 
-  // Socket signaling listeners
+  // Socket signaling listeners with W3C Perfect Negotiation
   useEffect(() => {
     if (!socket || !roomCode) return;
 
@@ -619,7 +513,7 @@ export function useVoiceChat(socket: Socket | null, roomCode?: string, _myPlayer
       createPeer(data.socketId, data.playerId, false);
     };
 
-    // WebRTC signal from peer
+    // WebRTC signal from peer (W3C Perfect Negotiation Pattern)
     const handleSignal = async (data: {
       fromPlayerId: string;
       fromSocketId: string;
@@ -639,21 +533,20 @@ export function useVoiceChat(socket: Socket | null, roomCode?: string, _myPlayer
       const { pc } = peer;
 
       try {
-        if (signal.type === 'offer') {
-          const offerCollision = pc.signalingState !== 'stable';
+        const description = signal.description || (signal.type === 'offer' || signal.type === 'answer' ? signal : null);
+        const candidate = signal.candidate;
 
-          if (offerCollision) {
-            if (!peer.isPolite) {
-              return; // Impolite peer ignores colliding offer
-            }
-            await Promise.all([
-              pc.setLocalDescription({ type: 'rollback' }),
-              pc.setRemoteDescription(new RTCSessionDescription(signal.sdp)),
-            ]);
-          } else {
-            await pc.setRemoteDescription(new RTCSessionDescription(signal.sdp));
+        if (description) {
+          const offerCollision =
+            description.type === 'offer' &&
+            (peer.makingOffer || pc.signalingState !== 'stable');
+
+          peer.ignoreOffer = !peer.isPolite && offerCollision;
+          if (peer.ignoreOffer) {
+            return;
           }
 
+          await pc.setRemoteDescription(new RTCSessionDescription(description));
           peer.hasRemoteDescription = true;
 
           // Flush queued candidates
@@ -664,35 +557,26 @@ export function useVoiceChat(socket: Socket | null, roomCode?: string, _myPlayer
             peer.candidateQueue = [];
           }
 
-          const answer = await pc.createAnswer();
-          await pc.setLocalDescription(answer);
-
-          if (socketRef.current) {
-            socketRef.current.emit('voice:signal', {
-              toSocketId: fromSocketId,
-              signal: { type: 'answer', sdp: pc.localDescription },
-            });
-          }
-        } else if (signal.type === 'answer') {
-          if (pc.signalingState === 'have-local-offer') {
-            await pc.setRemoteDescription(new RTCSessionDescription(signal.sdp));
-            peer.hasRemoteDescription = true;
-
-            // Flush queued candidates
-            if (peer.candidateQueue.length > 0) {
-              for (const cand of peer.candidateQueue) {
-                await pc.addIceCandidate(cand).catch(() => {});
-              }
-              peer.candidateQueue = [];
+          if (description.type === 'offer') {
+            await pc.setLocalDescription();
+            if (socketRef.current && pc.localDescription) {
+              socketRef.current.emit('voice:signal', {
+                toSocketId: fromSocketId,
+                signal: { description: pc.localDescription },
+              });
             }
           }
-        } else if (signal.type === 'candidate' && signal.candidate) {
-          if (peer.hasRemoteDescription && pc.remoteDescription) {
-            await pc.addIceCandidate(signal.candidate).catch((err) => {
-              console.warn('Failed to add ICE candidate:', err);
-            });
-          } else {
-            peer.candidateQueue.push(signal.candidate);
+        } else if (candidate) {
+          try {
+            if (peer.hasRemoteDescription && pc.remoteDescription) {
+              await pc.addIceCandidate(new RTCIceCandidate(candidate));
+            } else {
+              peer.candidateQueue.push(candidate);
+            }
+          } catch (err) {
+            if (!peer.ignoreOffer) {
+              console.warn('Failed to add candidate:', err);
+            }
           }
         }
       } catch (err) {
@@ -705,8 +589,6 @@ export function useVoiceChat(socket: Socket | null, roomCode?: string, _myPlayer
       const peer = peersRef.current.get(data.socketId);
       if (peer) {
         try {
-          if (peer.webAudioSource) peer.webAudioSource.disconnect();
-          if (peer.gainNode) peer.gainNode.disconnect();
           peer.pc.close();
           peer.audioEl.srcObject = null;
           peer.audioEl.remove();
