@@ -1,23 +1,20 @@
 import React, { useState, useEffect } from 'react';
 import type { HandResult, PlayerPublicState } from '@poker/shared';
-import { formatRupee, VIRTUAL_CURRENCY_DISCLAIMER } from '@poker/shared';
+import { formatRupee } from '@poker/shared';
 import confetti from 'canvas-confetti';
 import { CardView } from './CardView.js';
 import {
   Trophy,
-  Shield,
   X,
   ArrowLeft,
   Check,
   Play,
   Pause,
   Coins,
-  Eye,
   Layers,
   Sparkles,
-  ChevronDown,
+  Clock,
   Maximize2,
-  Users,
 } from 'lucide-react';
 
 interface ShowdownBannerProps {
@@ -56,36 +53,41 @@ export const ShowdownBanner: React.FC<ShowdownBannerProps> = ({
   const [activeTab, setActiveTab] = useState<'summary' | 'breakdown'>('summary');
   // Dock / Minimized state so user can freely inspect table felt
   const [isMinimized, setIsMinimized] = useState<boolean>(false);
-  // Countdown state with pause capability
-  const [countdown, setCountdown] = useState<number>(5);
+  // 7-second countdown timer with smooth fade-out
+  const [countdown, setCountdown] = useState<number>(7);
   const [isPaused, setIsPaused] = useState<boolean>(false);
+  const [isFadingOut, setIsFadingOut] = useState<boolean>(false);
 
   // Confetti trigger when hero wins
   useEffect(() => {
     if (isMeWinner) {
       try {
         confetti({
-          particleCount: 80,
-          spread: 70,
-          origin: { y: 0.6 },
+          particleCount: 90,
+          spread: 75,
+          origin: { y: 0.55 },
           colors: ['#f59e0b', '#10b981', '#fbbf24', '#ffffff'],
         });
       } catch (e) {}
     }
   }, [isMeWinner]);
 
-  // Auto-deal countdown timer
+  // 7-second auto-deal and smooth fade-out timer
   useEffect(() => {
-    if (playersWithZero.length > 0 || isPaused) return;
+    if (isPaused) return;
 
     const interval = setInterval(() => {
       setCountdown((prev: number) => {
         if (prev <= 1) {
           clearInterval(interval);
-          // If host, auto trigger deal next
-          if (isHost && onDealNext) {
-            onDealNext();
-          }
+          setIsFadingOut(true);
+          // Wait 700ms for smooth CSS fade-out animation before dismissing
+          setTimeout(() => {
+            if (onClose) onClose();
+            if (isHost && onDealNext && playersWithZero.length === 0) {
+              onDealNext();
+            }
+          }, 700);
           return 0;
         }
         return prev - 1;
@@ -93,7 +95,7 @@ export const ShowdownBanner: React.FC<ShowdownBannerProps> = ({
     }, 1000);
 
     return () => clearInterval(interval);
-  }, [playersWithZero.length, isPaused, isHost, onDealNext]);
+  }, [isPaused, isHost, onDealNext, onClose, playersWithZero.length]);
 
   const primaryWinner = result.winners[0];
   const winnerPlayer = players.find((p) => p.id === primaryWinner?.playerId);
@@ -101,11 +103,15 @@ export const ShowdownBanner: React.FC<ShowdownBannerProps> = ({
   const foldedPlayers = players.filter((p) => p.hasFolded);
 
   // ═══════════════════════════════════════════════════════════════════════════
-  // MODE 1: MINIMIZED TABLE DOCK (Floats gracefully at top/bottom of table)
+  // MODE 1: MINIMIZED TABLE DOCK (Floats gracefully at bottom of table)
   // ═══════════════════════════════════════════════════════════════════════════
   if (isMinimized) {
     return (
-      <div className="fixed bottom-3 inset-x-3 sm:bottom-4 sm:left-1/2 sm:-translate-x-1/2 sm:w-auto sm:max-w-2xl z-40 animate-fade-in pointer-events-auto">
+      <div
+        className={`fixed bottom-3 inset-x-3 sm:bottom-4 sm:left-1/2 sm:-translate-x-1/2 sm:w-auto sm:max-w-2xl z-40 transition-all duration-700 ${
+          isFadingOut ? 'opacity-0 scale-95 pointer-events-none' : 'opacity-100 scale-100 animate-fade-in'
+        } pointer-events-auto`}
+      >
         <div className="bg-zinc-950/95 backdrop-blur-xl border-2 border-amber-400/80 rounded-2xl p-2.5 sm:px-4 sm:py-2.5 shadow-2xl flex items-center justify-between gap-3 text-zinc-100">
           {/* Winner Badge & Info */}
           <div className="flex items-center gap-2.5 min-w-0">
@@ -127,28 +133,25 @@ export const ShowdownBanner: React.FC<ShowdownBannerProps> = ({
             </div>
           </div>
 
-          {/* Quick Actions */}
+          {/* Quick Actions & 7s Timer */}
           <div className="flex items-center gap-2 shrink-0">
-            {/* Auto-deal timer pill with pause */}
-            {playersWithZero.length === 0 && (
-              <button
-                onClick={() => setIsPaused(!isPaused)}
-                className="flex items-center gap-1 px-2 py-1 rounded-lg bg-zinc-900 border border-zinc-800 text-[10px] font-mono text-zinc-300 hover:text-white transition"
-                title={isPaused ? 'Resume auto-deal timer' : 'Pause auto-deal timer'}
-              >
-                {isPaused ? (
-                  <>
-                    <Play className="w-2.5 h-2.5 text-emerald-400" />
-                    <span>Paused</span>
-                  </>
-                ) : (
-                  <>
-                    <Pause className="w-2.5 h-2.5 text-amber-400" />
-                    <span>{countdown}s</span>
-                  </>
-                )}
-              </button>
-            )}
+            <button
+              onClick={() => setIsPaused(!isPaused)}
+              className="flex items-center gap-1 px-2 py-1 rounded-lg bg-zinc-900 border border-zinc-800 text-[10px] font-mono text-zinc-300 hover:text-white transition"
+              title={isPaused ? 'Resume auto-fade timer' : 'Pause auto-fade timer'}
+            >
+              {isPaused ? (
+                <>
+                  <Play className="w-2.5 h-2.5 text-emerald-400" />
+                  <span>Paused</span>
+                </>
+              ) : (
+                <>
+                  <Pause className="w-2.5 h-2.5 text-amber-400" />
+                  <span>{countdown}s</span>
+                </>
+              )}
+            </button>
 
             {/* Rebuy or Next Hand action */}
             {amOut && onRebuy ? (
@@ -197,13 +200,17 @@ export const ShowdownBanner: React.FC<ShowdownBannerProps> = ({
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
-  // MODE 2: FULL DETAILED SHOWDOWN MODAL (Friendly, Informative & Operable)
+  // MODE 2: FULL WINNER SPOTLIGHT MODAL (Visible to everyone, Fades in 7s)
   // ═══════════════════════════════════════════════════════════════════════════
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-md p-3 sm:p-4 animate-fade-in overflow-y-auto">
-      <div className="bg-gradient-to-b from-[#10141f] via-zinc-950 to-zinc-950 border-2 border-amber-400/90 rounded-3xl p-4 sm:p-6 shadow-2xl max-w-lg w-full flex flex-col relative my-auto max-h-[94dvh] overflow-y-auto text-zinc-100 ring-1 ring-amber-500/20">
-        {/* Top Header Bar: Title + Navigation Tabs + Minimize / Close */}
-        <div className="flex items-center justify-between pb-3 border-b border-zinc-800/80 mb-4">
+    <div
+      className={`fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md p-3 sm:p-4 transition-all duration-700 ease-in-out ${
+        isFadingOut ? 'opacity-0 scale-95 pointer-events-none' : 'opacity-100 scale-100 animate-fade-in'
+      } overflow-y-auto`}
+    >
+      <div className="bg-gradient-to-b from-[#0f1422] via-zinc-950 to-zinc-950 border-2 border-amber-400/90 rounded-3xl p-4 sm:p-6 shadow-2xl max-w-lg w-full flex flex-col relative my-auto max-h-[94dvh] overflow-y-auto text-zinc-100 ring-1 ring-amber-500/30">
+        {/* Top Header Bar: Title + Navigation Tabs + Back to table / Close */}
+        <div className="flex items-center justify-between pb-3 border-b border-zinc-800/80 mb-3">
           <div className="flex items-center gap-2">
             <div className="w-8 h-8 rounded-xl bg-amber-500/20 border border-amber-400/50 flex items-center justify-center text-amber-400 shadow">
               <Trophy className="w-4 h-4" />
@@ -213,26 +220,26 @@ export const ShowdownBanner: React.FC<ShowdownBannerProps> = ({
                 Hand Results
               </h2>
               <span className="text-[10px] text-zinc-400 font-mono">
-                {isShowdown ? 'Showdown Completed' : 'Ended by Fold'}
+                {isShowdown ? 'Showdown Completed' : 'All Opponents Folded'}
               </span>
             </div>
           </div>
 
-          {/* Action buttons: Back to table felt */}
+          {/* Action buttons: Back to table / Dismiss */}
           <div className="flex items-center gap-1.5">
             <button
               onClick={() => setIsMinimized(true)}
               className="px-2.5 py-1.5 rounded-xl bg-zinc-900 hover:bg-zinc-800 text-zinc-300 hover:text-white border border-zinc-700/80 transition text-xs font-bold flex items-center gap-1.5 active:scale-95"
-              title="Back to view table felt"
+              title="Minimize to table dock"
             >
               <ArrowLeft className="w-3.5 h-3.5 text-amber-400" />
-              <span className="text-[11px] font-bold">Back to Table</span>
+              <span className="text-[11px] font-bold hidden sm:inline">Table</span>
             </button>
 
             {onClose && (
               <button
                 onClick={onClose}
-                className="p-1 rounded-xl bg-zinc-900 hover:bg-zinc-800 text-zinc-400 hover:text-white border border-zinc-800 transition"
+                className="p-1.5 rounded-xl bg-zinc-900 hover:bg-zinc-800 text-zinc-400 hover:text-white border border-zinc-800 transition"
                 title="Dismiss"
               >
                 <X className="w-4 h-4" />
@@ -241,8 +248,8 @@ export const ShowdownBanner: React.FC<ShowdownBannerProps> = ({
           </div>
         </div>
 
-        {/* Navigation Tabs: Summary vs Hand Breakdown */}
-        <div className="grid grid-cols-2 gap-1.5 bg-zinc-900/80 p-1 rounded-2xl border border-zinc-800 mb-4 font-mono text-xs">
+        {/* Navigation Tabs: Summary vs Detailed Cards */}
+        <div className="grid grid-cols-2 gap-1.5 bg-zinc-900/80 p-1 rounded-2xl border border-zinc-800 mb-3 font-mono text-xs">
           <button
             onClick={() => setActiveTab('summary')}
             className={`py-1.5 px-3 rounded-xl font-bold transition flex items-center justify-center gap-1.5 ${
@@ -252,7 +259,7 @@ export const ShowdownBanner: React.FC<ShowdownBannerProps> = ({
             }`}
           >
             <Sparkles className="w-3.5 h-3.5" />
-            <span>Winner Summary</span>
+            <span>Winner Spotlight</span>
           </button>
 
           <button
@@ -264,16 +271,15 @@ export const ShowdownBanner: React.FC<ShowdownBannerProps> = ({
             }`}
           >
             <Layers className="w-3.5 h-3.5" />
-            <span>Detailed Cards</span>
+            <span>All Cards & Pots</span>
           </button>
         </div>
 
         {/* ═══════════════════════════════════════════════════════════════════ */}
-        {/* TAB 1: SUMMARY (Clean, celebratory winner spotlight)                */}
+        {/* TAB 1: SUMMARY (Grand Winner Spotlight + Visible Winning Cards)     */}
         {/* ═══════════════════════════════════════════════════════════════════ */}
         {activeTab === 'summary' && (
           <div className="flex flex-col items-center text-center">
-            {/* Winner spotlight banner */}
             {result.winners.map((winner, idx) => {
               const p = players.find((pl) => pl.id === winner.playerId);
               const isYou = winner.playerId === myPlayerId;
@@ -282,13 +288,16 @@ export const ShowdownBanner: React.FC<ShowdownBannerProps> = ({
               return (
                 <div
                   key={idx}
-                  className="w-full flex flex-col items-center p-4 rounded-2xl bg-zinc-900/60 border border-amber-500/30 shadow-inner mb-3"
+                  className="w-full flex flex-col items-center p-4 rounded-2xl bg-zinc-900/70 border border-amber-500/40 shadow-xl mb-3 relative overflow-hidden"
                 >
-                  <div className="flex items-center gap-2 mb-1">
+                  {/* Glowing background halo */}
+                  <div className="absolute inset-0 bg-gradient-to-b from-amber-500/10 via-transparent to-transparent pointer-events-none" />
+
+                  <div className="flex items-center gap-2 mb-1 z-10">
                     <span
-                      className={`text-xs uppercase tracking-widest font-mono font-black px-2.5 py-0.5 rounded-full ${
+                      className={`text-xs uppercase tracking-widest font-mono font-black px-3 py-1 rounded-full shadow ${
                         isYou
-                          ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 animate-pulse'
+                          ? 'bg-emerald-500/25 text-emerald-300 border border-emerald-500/50 animate-pulse'
                           : 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
                       }`}
                     >
@@ -297,37 +306,87 @@ export const ShowdownBanner: React.FC<ShowdownBannerProps> = ({
                   </div>
 
                   {/* Big Pot Won Amount */}
-                  <h2 className="text-3xl sm:text-4xl font-black text-amber-300 font-mono tracking-tight my-1 drop-shadow-md">
+                  <h2 className="text-3xl sm:text-4xl font-black text-amber-300 font-mono tracking-tight my-1 drop-shadow-md z-10">
                     +{formatRupee(winner.amount)}
                   </h2>
 
-                  {/* Evaluated Hand Name */}
-                  <div className="text-sm font-bold text-zinc-200 mt-0.5">
+                  {/* Detail on How They Won */}
+                  <div className="text-xs sm:text-sm font-bold text-amber-100/90 mt-0.5 bg-black/40 px-3 py-1 rounded-lg border border-amber-500/20 z-10">
                     {winner.handName}
                   </div>
 
-                  {/* Winning 5-Card combination */}
+                  {/* ── WINNING CARDS VISIBLE ── */}
                   {winner.winningCards && winner.winningCards.length > 0 && (
-                    <div className="flex items-center gap-1.5 mt-3 p-2 bg-black/40 rounded-2xl border border-zinc-800/80">
-                      {winner.winningCards.map((c, i) => (
-                        <CardView key={i} card={c} size="sm" isHighlighted />
-                      ))}
+                    <div className="flex flex-col items-center gap-1.5 mt-3 z-10">
+                      <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-amber-400/90">
+                        Winning Cards
+                      </span>
+                      <div className="flex items-center gap-1.5 p-2 bg-black/60 rounded-2xl border border-zinc-800 shadow-inner">
+                        {winner.winningCards.map((c, i) => (
+                          <CardView key={i} card={c} size="md" isHighlighted />
+                        ))}
+                      </div>
                     </div>
                   )}
 
-                  {/* New Stack badge */}
-                  <div className="mt-3 px-3.5 py-1 bg-zinc-950 rounded-full border border-zinc-800 text-zinc-300 font-mono text-xs flex items-center gap-2">
-                    <span className="text-zinc-500 text-[10px] uppercase">New Stack:</span>
+                  {/* New Chip Stack */}
+                  <div className="mt-3 px-3.5 py-1 bg-zinc-950 rounded-full border border-zinc-800 text-zinc-300 font-mono text-xs flex items-center gap-2 z-10">
+                    <span className="text-zinc-500 text-[10px] uppercase">New Chip Stack:</span>
                     <span className="font-bold text-amber-300">{formatRupee(newStack)}</span>
                   </div>
                 </div>
               );
             })}
+
+            {/* If Showdown occurred, display contested hands below the spotlight */}
+            {isShowdown && result.showdownHands.length > 1 && (
+              <div className="w-full mt-1 p-3 bg-zinc-900/50 rounded-2xl border border-zinc-800/80 text-left">
+                <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-zinc-400 block mb-2">
+                  All Revealed Showdown Hands
+                </span>
+                <div className="flex flex-col gap-2">
+                  {result.showdownHands.map((sh, idx) => {
+                    const p = players.find((pl) => pl.id === sh.playerId);
+                    const isWinner = result.winners.some((w) => w.playerId === sh.playerId);
+
+                    return (
+                      <div
+                        key={idx}
+                        className={`p-2 rounded-xl border flex items-center justify-between gap-2 ${
+                          isWinner
+                            ? 'bg-amber-500/10 border-amber-500/40'
+                            : 'bg-black/40 border-zinc-800/70'
+                        }`}
+                      >
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-1 text-xs font-bold text-zinc-200 truncate">
+                            <span>{p?.name || 'Player'}</span>
+                            {isWinner && (
+                              <span className="text-[8px] bg-amber-500/20 text-amber-300 px-1 rounded font-mono font-bold">
+                                WINNER
+                              </span>
+                            )}
+                          </div>
+                          <span className="text-[10px] text-zinc-400 font-mono truncate block">
+                            {sh.handName}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-1 shrink-0">
+                          {sh.cards.map((c, i) => (
+                            <CardView key={i} card={c} size="sm" isHighlighted={isWinner} />
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
           </div>
         )}
 
         {/* ═══════════════════════════════════════════════════════════════════ */}
-        {/* TAB 2: DETAILED HAND BREAKDOWN (Hole cards, ranks, community, pots) */}
+        {/* TAB 2: DETAILED BREAKDOWN (Community cards & pot allocation)       */}
         {/* ═══════════════════════════════════════════════════════════════════ */}
         {activeTab === 'breakdown' && (
           <div className="flex flex-col gap-3 text-left">
@@ -346,7 +405,7 @@ export const ShowdownBanner: React.FC<ShowdownBannerProps> = ({
               </div>
             )}
 
-            {/* 2. Showdown Hands list */}
+            {/* 2. Revealed Showdown Hands list */}
             {isShowdown ? (
               <div className="p-3 bg-zinc-900/60 rounded-2xl border border-zinc-800 flex flex-col gap-2.5">
                 <div className="text-[10px] font-mono uppercase tracking-wider text-zinc-400 font-bold flex items-center justify-between">
@@ -369,7 +428,6 @@ export const ShowdownBanner: React.FC<ShowdownBannerProps> = ({
                             : 'bg-zinc-950/60 border-zinc-800/80'
                         }`}
                       >
-                        {/* Player name & Hand rank */}
                         <div className="min-w-0">
                           <div className="flex items-center gap-1.5">
                             <span className="font-bold text-xs text-zinc-100 truncate">
@@ -391,7 +449,6 @@ export const ShowdownBanner: React.FC<ShowdownBannerProps> = ({
                           </div>
                         </div>
 
-                        {/* Revealed Hole Cards */}
                         <div className="flex items-center gap-1 shrink-0">
                           {sh.cards.map((c, i) => (
                             <CardView key={i} card={c} size="sm" isHighlighted={isWinner} />
@@ -403,7 +460,6 @@ export const ShowdownBanner: React.FC<ShowdownBannerProps> = ({
                 </div>
               </div>
             ) : (
-              /* If no showdown happened (all others folded) */
               <div className="p-3 bg-zinc-900/60 rounded-2xl border border-zinc-800 flex flex-col gap-2">
                 <div className="text-[10px] font-mono uppercase tracking-wider text-zinc-400 font-bold">
                   Hand Action Summary
@@ -449,9 +505,7 @@ export const ShowdownBanner: React.FC<ShowdownBannerProps> = ({
                         <span>{pIdx === 0 ? 'Main Pot' : `Side Pot ${pIdx}`}</span>
                         <div className="flex items-center gap-2 font-bold">
                           <span className="text-amber-300">{formatRupee(pot.amount)}</span>
-                          <span className="text-[10px] text-zinc-500 font-normal">
-                            → {potWinners || 'Winner'}
-                          </span>
+                          <span className="text-[10px] text-zinc-400">({potWinners})</span>
                         </div>
                       </div>
                     );
@@ -463,96 +517,39 @@ export const ShowdownBanner: React.FC<ShowdownBannerProps> = ({
         )}
 
         {/* ═══════════════════════════════════════════════════════════════════ */}
-        {/* FOOTER ACTIONS ZONE: Timer, Rebuy, Ready, Deal Immediately         */}
+        {/* 7-SECOND AUTO-FADE TIMER & PROGRESS BAR (Requested by user)        */}
         {/* ═══════════════════════════════════════════════════════════════════ */}
-        <div className="mt-4 pt-3 border-t border-zinc-800/80 flex flex-col items-center gap-2.5">
-          {/* Zero chips alert if anyone busted */}
-          {playersWithZero.length > 0 ? (
-            <div className="p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/30 text-xs text-amber-300 font-mono w-full text-center">
-              {amOut ? (
-                <span>⚠️ You have ₹0 chips! Rebuy below to deal the next hand.</span>
-              ) : (
-                <span>
-                  ⚠️ Waiting for {playersWithZero.map((p) => p.name).join(', ')} to rebuy chips.
-                </span>
-              )}
-            </div>
-          ) : (
-            /* Auto-deal countdown indicator with Pause/Play button */
-            <div className="p-2 rounded-xl bg-zinc-900/80 border border-zinc-800 text-xs font-mono text-zinc-300 w-full flex items-center justify-between px-3">
-              <div className="flex items-center gap-2">
-                <span
-                  className={`w-2 h-2 rounded-full ${
-                    isPaused ? 'bg-amber-400' : 'bg-emerald-400 animate-ping'
-                  }`}
-                />
-                <span>
-                  {isPaused
-                    ? 'Timer paused (inspect cards)'
-                    : `Dealing next hand in ${countdown}s…`}
-                </span>
-              </div>
+        <div className="w-full mt-3 pt-3 border-t border-zinc-800/80 flex flex-col items-center gap-2">
+          {/* Animated 7s gradient progress bar */}
+          <div className="w-full bg-zinc-900 rounded-full h-2 overflow-hidden border border-zinc-800/80 shadow-inner">
+            <div
+              className="h-full bg-gradient-to-r from-amber-500 via-yellow-400 to-emerald-400 rounded-full transition-all duration-1000 ease-linear shadow-[0_0_10px_rgba(245,158,11,0.5)]"
+              style={{ width: `${Math.max(0, (countdown / 7) * 100)}%` }}
+            />
+          </div>
 
+          <div className="flex items-center justify-between w-full text-[11px] text-zinc-400 font-mono font-medium px-1">
+            <span className="flex items-center gap-1.5">
+              <Clock className="w-3.5 h-3.5 text-amber-400" />
+              <span>{isPaused ? 'Auto-fade paused' : `Fading out in ${countdown}s`}</span>
+            </span>
+
+            <div className="flex items-center gap-2">
               <button
                 onClick={() => setIsPaused(!isPaused)}
-                className="px-2 py-0.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-200 text-[10px] font-mono flex items-center gap-1 transition"
-                title={isPaused ? 'Resume countdown' : 'Pause countdown'}
+                className="text-amber-400 hover:text-amber-300 underline font-bold transition"
               >
-                {isPaused ? (
-                  <>
-                    <Play className="w-2.5 h-2.5 text-emerald-400 fill-emerald-400" />
-                    <span>Resume</span>
-                  </>
-                ) : (
-                  <>
-                    <Pause className="w-2.5 h-2.5 text-amber-400" />
-                    <span>Pause</span>
-                  </>
-                )}
+                {isPaused ? 'Resume' : 'Pause'}
               </button>
-            </div>
-          )}
 
-          {/* Primary Action Button */}
-          {amOut && onRebuy ? (
-            <button
-              onClick={onRebuy}
-              className="w-full py-3 bg-gradient-to-r from-amber-500 via-amber-400 to-yellow-500 text-zinc-950 font-black text-xs uppercase tracking-wider rounded-2xl shadow-xl transition active:scale-95 flex items-center justify-center gap-2"
-            >
-              <Coins className="w-4 h-4" />
-              <span>Rebuy Chips to Play</span>
-            </button>
-          ) : isHost && onDealNext ? (
-            <button
-              onClick={onDealNext}
-              className="w-full py-3 px-4 bg-gradient-to-r from-amber-500 via-amber-400 to-yellow-500 text-zinc-950 font-black text-xs uppercase tracking-wider rounded-2xl shadow-xl transition active:scale-95 flex items-center justify-center gap-2"
-            >
-              <Play className="w-4 h-4 fill-zinc-950" />
-              <span>Deal Next Hand Immediately</span>
-            </button>
-          ) : (
-            onDealNext && (
-              <button
-                onClick={onDealNext}
-                className="w-full py-2.5 px-4 bg-zinc-900 hover:bg-zinc-800 text-amber-300 border border-amber-500/40 font-bold text-xs uppercase tracking-wider rounded-2xl shadow transition active:scale-95 flex items-center justify-center gap-2"
-              >
-                <Check className="w-4 h-4 text-emerald-400" />
-                <span>Ready for Next Hand ({readyPlayerCount} of {totalActivePlayerCount})</span>
-              </button>
-            )
-          )}
-
-          {/* Readiness count & Disclaimer */}
-          <div className="flex items-center justify-between w-full text-[10px] text-zinc-500 font-mono px-1">
-            <div className="flex items-center gap-1">
-              <Users className="w-3 h-3 text-zinc-400" />
-              <span>
-                {readyPlayerCount} / {totalActivePlayerCount} ready
-              </span>
-            </div>
-            <div className="flex items-center gap-1">
-              <Shield className="w-3 h-3 text-amber-400 shrink-0" />
-              <span>Virtual chips only</span>
+              {onClose && (
+                <button
+                  onClick={onClose}
+                  className="px-2 py-0.5 bg-zinc-900 hover:bg-zinc-800 rounded border border-zinc-800 text-[10px] text-zinc-300 transition"
+                >
+                  Dismiss
+                </button>
+              )}
             </div>
           </div>
         </div>

@@ -582,12 +582,19 @@ export class PokerEngine {
         {
           playerId: winner.id,
           amount: awardAmount,
-          handName: 'Won by default (all others folded)',
-          winningCards: [],
+          handName: 'Won by default (all opponents folded)',
+          winningCards: [...winner.holeCards],
         },
       ],
       potBreakdown: [{ potIndex: 0, amount: awardAmount, winnerIds: [winner.id] }],
-      showdownHands: [],
+      showdownHands: [
+        {
+          playerId: winner.id,
+          cards: [...winner.holeCards],
+          handRank: 'Default',
+          handName: 'Won by default (all opponents folded)',
+        },
+      ],
       communityCards: [...this.communityCards],
     };
 
@@ -616,6 +623,7 @@ export class PokerEngine {
     // Evaluate all non-folded hands
     const nonFolded = this.players.filter((p) => p !== null && !p.hasFolded);
     const evaluations = new Map<string, { category: number; ranks: number[] }>();
+    const best5Map = new Map<string, Card[]>();
     const showdownHandsList: HandResult['showdownHands'] = [];
 
     for (const p of nonFolded) {
@@ -625,6 +633,7 @@ export class PokerEngine {
         category: evaluated.category,
         ranks: evaluated.ranks,
       });
+      best5Map.set(p!.id, evaluated.best5);
       showdownHandsList.push({
         playerId: p!.id,
         cards: p!.holeCards,
@@ -654,6 +663,7 @@ export class PokerEngine {
 
         const handInfo = showdownHandsList.find((h) => h.playerId === w.playerId);
         const existingSummary = winnersSummary.find((ws) => ws.playerId === w.playerId);
+        const winningCards = best5Map.get(w.playerId) ?? handInfo?.cards ?? [];
         if (existingSummary) {
           existingSummary.amount += w.amount;
         } else {
@@ -661,7 +671,7 @@ export class PokerEngine {
             playerId: w.playerId,
             amount: w.amount,
             handName: handInfo?.handName ?? 'Winner',
-            winningCards: handInfo?.cards ?? [],
+            winningCards,
           });
         }
       }
