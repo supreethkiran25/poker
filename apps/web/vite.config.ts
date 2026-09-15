@@ -2,7 +2,7 @@ import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import basicSsl from '@vitejs/plugin-basic-ssl';
 
-const isHttps = process.env.HTTPS === 'true' || process.argv.includes('--https');
+const isHttps = process.env.HTTP !== 'true' && !process.argv.includes('--no-https');
 
 export default defineConfig({
   plugins: [
