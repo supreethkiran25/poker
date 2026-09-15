@@ -6,8 +6,8 @@ const isHttps = process.env.HTTPS === 'true' || process.argv.includes('--https')
 
 export default defineConfig({
   plugins: [
-    react(),
-    ...(isHttps ? [basicSsl()] : []),
+    react() as any,
+    ...(isHttps ? [basicSsl() as any] : []),
   ],
   server: {
     host: true,
