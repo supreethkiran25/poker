@@ -584,6 +584,7 @@ export class PokerEngine {
           playerName: winner.name,
           amount: awardAmount,
           handName: 'Won by default (all opponents folded)',
+          handRank: 'Opponents Folded',
           winningCards: [...winner.holeCards],
           holeCards: [...winner.holeCards],
         },
@@ -678,6 +679,7 @@ export class PokerEngine {
             playerName: player?.name ?? 'Player',
             amount: w.amount,
             handName: handInfo?.handName ?? 'Winner',
+            handRank: handInfo?.handRank ?? 'Winner',
             winningCards,
             holeCards: player ? [...player.holeCards] : [],
           });

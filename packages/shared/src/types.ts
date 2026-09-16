@@ -85,6 +85,7 @@ export interface HandWinner {
   playerName?: string;
   amount: number;
   handName: string;
+  handRank?: string;
   winningCards: Card[];
   holeCards?: Card[];
 }

@@ -17,6 +17,11 @@ interface PlayerSeatProps {
   compact?: boolean;
   isSpeaking?: boolean;
   isMuted?: boolean;
+  isWinner?: boolean;
+  winningCards?: any[];
+  showdownHoleCards?: any[];
+  isHandComplete?: boolean;
+  chipPlacement?: 'top' | 'bottom' | 'none';
 }
 
 export const PlayerSeat: React.FC<PlayerSeatProps> = ({
@@ -30,10 +35,33 @@ export const PlayerSeat: React.FC<PlayerSeatProps> = ({
   compact = false,
   isSpeaking = false,
   isMuted = false,
+  isWinner = false,
+  winningCards = [],
+  showdownHoleCards,
+  isHandComplete = false,
+  chipPlacement = 'top',
 }) => {
   const isDealer = player.seatIndex === dealerSeat;
   const isSB = player.seatIndex === smallBlindSeat;
   const isBB = player.seatIndex === bigBlindSeat;
+  const [imgError, setImgError] = useState(false);
+
+  // Compute portrait avatar URL
+  const avatarUrl = React.useMemo(() => {
+    if (player.avatar && (player.avatar.startsWith('http') || player.avatar.startsWith('data:'))) {
+      return player.avatar;
+    }
+    const seed = player.avatar && player.avatar.length > 2 ? player.avatar : player.name;
+    return `https://api.dicebear.com/7.x/personas/svg?seed=${encodeURIComponent(seed)}&backgroundColor=b6e3f4,c0aede,d1d4f9,ffd5dc,ffdfbf`;
+  }, [player.avatar, player.name]);
+
+  const cardsToDisplay =
+    showdownHoleCards && showdownHoleCards.length > 0 ? showdownHoleCards : player.holeCards;
+
+  const hasWinningCard = (c: any) => {
+    if (!isWinner || !winningCards || winningCards.length === 0 || !c || 'hidden' in c) return false;
+    return winningCards.some((wc) => wc.suit === c.suit && wc.rank === c.rank);
+  };
 
   // Decision timer calculation
   const [secondsRemaining, setSecondsRemaining] = useState<number | null>(null);
@@ -66,8 +94,8 @@ export const PlayerSeat: React.FC<PlayerSeatProps> = ({
         player.hasFolded ? 'opacity-40 grayscale-[40%]' : 'opacity-100'
       }`}
     >
-      {/* Current bet chip badge above or beside seat */}
-      {player.currentBet > 0 && (
+      {/* Current bet chip badge above seat (for bottom half players) */}
+      {player.currentBet > 0 && chipPlacement === 'top' && (
         <div className="mb-1 z-20">
           <ChipStack amount={player.currentBet} size="sm" />
         </div>
@@ -132,17 +160,32 @@ export const PlayerSeat: React.FC<PlayerSeatProps> = ({
           )}
 
           <div
-            className={`relative rounded-full bg-gradient-to-tr from-amber-600 via-amber-700 to-yellow-500 p-0.5 shadow-md flex items-center justify-center ${
-              compact ? 'w-7 h-7' : 'w-8 h-8'
-            } ${isSpeaking ? 'ring-2 ring-emerald-400' : ''}`}
+            className={`relative rounded-full p-0.5 shadow-md flex items-center justify-center transition-all duration-500 overflow-hidden ${
+              compact ? 'w-8 h-8 sm:w-9 sm:h-9' : 'w-10 h-10 sm:w-12 sm:h-12'
+            } ${
+              isWinner
+                ? 'ring-4 ring-cyan-400 shadow-[0_0_24px_#00e5ff,0_0_42px_rgba(6,182,212,0.85)] scale-110 z-30 bg-cyan-400'
+                : isSpeaking
+                ? 'ring-2 ring-emerald-400 bg-emerald-500'
+                : 'bg-gradient-to-tr from-amber-600 via-amber-700 to-yellow-500'
+            }`}
           >
-            <div
-              className={`w-full h-full rounded-full bg-zinc-900 flex items-center justify-center font-black text-amber-300 ${
-                compact ? 'text-[9px]' : 'text-xs'
-              }`}
-            >
-              {player.name.slice(0, 2).toUpperCase()}
-            </div>
+            {!imgError ? (
+              <img
+                src={avatarUrl}
+                alt={player.name}
+                className="w-full h-full rounded-full object-cover bg-zinc-800"
+                onError={() => setImgError(true)}
+              />
+            ) : (
+              <div
+                className={`w-full h-full rounded-full bg-zinc-900 flex items-center justify-center font-black text-amber-300 ${
+                  compact ? 'text-[9px]' : 'text-xs'
+                }`}
+              >
+                {player.name.slice(0, 2).toUpperCase()}
+              </div>
+            )}
           </div>
 
           {/* Mic icon indicator */}
@@ -177,6 +220,11 @@ export const PlayerSeat: React.FC<PlayerSeatProps> = ({
             {isMe && (
               <span className="text-[7px] bg-emerald-500/20 text-emerald-400 px-1 py-0.5 rounded font-mono font-bold flex-shrink-0 leading-none">
                 YOU
+              </span>
+            )}
+            {isWinner && (
+              <span className="text-[7px] bg-amber-400 text-zinc-950 px-1 py-0.5 rounded font-mono font-black flex-shrink-0 leading-none shadow">
+                WIN
               </span>
             )}
           </div>
@@ -234,12 +282,35 @@ export const PlayerSeat: React.FC<PlayerSeatProps> = ({
         )}
       </div>
 
-      {/* Opponent cards (face down if in hand) */}
-      {!isMe && player.holeCards && player.holeCards.length > 0 && !player.hasFolded && (
-        <div className="flex items-center -space-x-3 mt-1">
-          {player.holeCards.map((c, i) => (
-            <CardView key={i} card={c} size="sm" />
-          ))}
+      {/* Cards: face down during play, revealed at showdown */}
+      {!isMe && cardsToDisplay && cardsToDisplay.length > 0 && (!player.hasFolded || isWinner) && (
+        <div
+          className={`flex items-center mt-1 transition-all duration-300 ${
+            isWinner ? '-space-x-1 sm:space-x-1 scale-100 z-30' : '-space-x-4 sm:-space-x-3'
+          }`}
+        >
+          {cardsToDisplay.map((c, i) => {
+            const isWinning = hasWinningCard(c);
+            const isDim = isHandComplete && !isWinning;
+            return (
+              <CardView
+                key={i}
+                card={c}
+                size="sm"
+                isHighlighted={isWinning}
+                isDimmed={isDim}
+                dealDelayMs={i * 100}
+                tiltDeg={!isWinner ? (i === 0 ? -4 : 4) : 0}
+              />
+            );
+          })}
+        </div>
+      )}
+
+      {/* Current bet chip badge below seat (towards table center for top half players) */}
+      {player.currentBet > 0 && chipPlacement === 'bottom' && (
+        <div className="mt-1.5 z-20">
+          <ChipStack amount={player.currentBet} size="sm" />
         </div>
       )}
 

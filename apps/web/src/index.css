@@ -38,34 +38,41 @@ body {
   background: rgba(212, 175, 55, 0.7);
 }
 
-/* ── Authentic Casino Poker Table ── */
+/* ── Authentic Casino Poker Table (Teal Reference Theme) ── */
+
+.poker-arena-bg {
+  background-color: #090e1a;
+  background-image:
+    radial-gradient(circle at 50% 40%, rgba(14, 116, 144, 0.12) 0%, transparent 70%),
+    radial-gradient(circle at 50% 50%, #090e1a 0%, #04070d 100%);
+}
 
 .poker-table-outer-rail {
-  background: linear-gradient(145deg, #2b1d14 0%, #160e0a 50%, #0d0806 100%);
-  border: clamp(3px, 0.6vw, 6px) solid #3d2b1f;
+  background: linear-gradient(145deg, #334155 0%, #1e293b 50%, #0f172a 100%);
+  border: clamp(3px, 0.6vw, 6px) solid #475569;
   box-shadow:
-    0 20px 60px rgba(0, 0, 0, 0.95),
-    inset 0 3px 8px rgba(255, 255, 255, 0.08),
-    inset 0 -4px 12px rgba(0, 0, 0, 0.85);
+    0 24px 70px rgba(0, 0, 0, 0.95),
+    inset 0 3px 8px rgba(255, 255, 255, 0.15),
+    inset 0 -4px 14px rgba(0, 0, 0, 0.85);
   padding: clamp(8px, 1.5vw, 18px);
   border-radius: 9999px;
   box-sizing: border-box;
 }
 
 .poker-felt-surface {
-  background-color: #0b3420;
+  background-color: #0f766e;
   background-image:
-    radial-gradient(circle at 50% 50%, #124d2f 0%, #082918 80%, #04180e 100%),
+    radial-gradient(ellipse at 50% 50%, #0891b2 0%, #0d9488 45%, #0f766e 75%, #134e4a 100%),
     repeating-linear-gradient(
       45deg,
-      rgba(255, 255, 255, 0.010) 0px,
-      rgba(255, 255, 255, 0.010) 2px,
+      rgba(255, 255, 255, 0.012) 0px,
+      rgba(255, 255, 255, 0.012) 2px,
       transparent 2px,
       transparent 6px
     );
   box-shadow:
-    inset 0 0 80px rgba(0, 0, 0, 0.8),
-    inset 0 0 16px rgba(0, 0, 0, 0.85);
+    inset 0 0 90px rgba(0, 0, 0, 0.75),
+    inset 0 0 20px rgba(0, 0, 0, 0.9);
   border-radius: 9999px;
   position: relative;
   overflow: visible; /* Allow player pods to overflow the oval edge */
@@ -78,7 +85,7 @@ body {
 .poker-betting-line {
   position: absolute;
   inset: clamp(10px, 3%, 24px);
-  border: 2px dashed rgba(212, 175, 55, 0.22);
+  border: 2px dashed rgba(255, 255, 255, 0.22);
   border-radius: 9999px;
   pointer-events: none;
   z-index: 0;

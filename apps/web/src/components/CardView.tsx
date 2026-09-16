@@ -5,6 +5,7 @@ interface CardViewProps {
   card?: HoleCardItem;
   size?: 'sm' | 'md' | 'lg';
   isHighlighted?: boolean;
+  isDimmed?: boolean;
   dealDelayMs?: number;
   isInteractive?: boolean;
   tiltDeg?: number;
@@ -471,6 +472,7 @@ export const CardView: React.FC<CardViewProps> = ({
   card,
   size = 'md',
   isHighlighted = false,
+  isDimmed = false,
   dealDelayMs = 0,
   isInteractive = false,
   tiltDeg = 0,
@@ -552,20 +554,22 @@ export const CardView: React.FC<CardViewProps> = ({
 
   return (
     <div
-      className={`${s.card} relative select-none realistic-card-shadow card-cinematic-deal ${
+      className={`${s.card} relative select-none realistic-card-shadow card-cinematic-deal transition-all duration-300 ${
         isInteractive ? 'hole-card-interactive' : ''
       } ${
         isHighlighted
-          ? 'ring-2 ring-amber-400 ring-offset-2 ring-offset-zinc-950 scale-105'
+          ? 'ring-2 ring-lime-400 ring-offset-1 ring-offset-zinc-950 scale-105 z-10'
+          : isDimmed
+          ? 'opacity-55 brightness-75 scale-95'
           : ''
       }`}
       style={{
         background: '#ffffff',
-        border: isHighlighted ? '1.5px solid #fbbf24' : '1px solid #cbd5e1',
+        border: isHighlighted ? '2px solid #bef264' : '1px solid #cbd5e1',
         animationDelay: `${dealDelayMs}ms`,
         transform: tiltDeg && !isInteractive ? `rotate(${tiltDeg}deg)` : undefined,
         boxShadow: isHighlighted
-          ? '0 0 16px rgba(251, 191, 36, 0.6), 0 4px 12px rgba(0,0,0,0.5)'
+          ? '0 0 18px rgba(190, 242, 100, 0.95), 0 0 28px rgba(250, 204, 21, 0.75), 0 4px 12px rgba(0,0,0,0.55)'
           : '0 3px 8px -1px rgba(0,0,0,0.35), 0 1px 3px rgba(0,0,0,0.2), inset 0 0 0 1px rgba(255,255,255,0.85)',
       }}
     >

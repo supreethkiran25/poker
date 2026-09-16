@@ -11,6 +11,7 @@ interface ActionBarProps {
   myChips: number;
   secondsRemaining?: number | null;
   turnDuration?: number;
+  compact?: boolean;
   onAction: (type: ActionType, amount?: number) => void;
 }
 
@@ -22,6 +23,7 @@ export const ActionBar: React.FC<ActionBarProps> = ({
   myChips,
   secondsRemaining = null,
   turnDuration = 30,
+  compact = false,
   onAction,
 }) => {
   const raiseAction = legalActions.find((a) => a.type === 'raise' || a.type === 'bet');
@@ -38,7 +40,11 @@ export const ActionBar: React.FC<ActionBarProps> = ({
   // When not player's turn: clean placeholder with consistent height
   if (!isMyTurn || legalActions.length === 0) {
     return (
-      <div className="w-full bg-zinc-950/80 backdrop-blur-md px-4 py-3 rounded-2xl border border-zinc-800/80 text-zinc-500 font-mono text-xs shadow-xl text-center flex items-center justify-center gap-2">
+      <div
+        className={`w-full bg-zinc-950/80 backdrop-blur-md border border-zinc-800/80 text-zinc-500 font-mono shadow-xl text-center flex items-center justify-center gap-2 ${
+          compact ? 'px-3 py-1.5 rounded-xl text-[11px]' : 'px-4 py-3 rounded-2xl text-xs'
+        }`}
+      >
         <span className="w-2 h-2 rounded-full bg-amber-400/60 animate-pulse" />
         <span>Waiting for other players…</span>
       </div>
@@ -55,7 +61,11 @@ export const ActionBar: React.FC<ActionBarProps> = ({
   const doublePot = Math.min(maxRaise, Math.max(minRaise, currentBet + pot * 2));
 
   return (
-    <div className="relative flex flex-col items-center gap-2 bg-zinc-950/95 backdrop-blur-xl p-2 sm:p-3 rounded-2xl border border-zinc-800 shadow-2xl w-full select-none overflow-hidden">
+    <div
+      className={`relative flex flex-col items-center bg-zinc-950/95 backdrop-blur-xl border border-zinc-800 shadow-2xl w-full select-none overflow-hidden ${
+        compact ? 'p-1.5 gap-1 rounded-xl' : 'p-2 sm:p-3 gap-2 rounded-2xl'
+      }`}
+    >
       {/* ── Top edge animated turn countdown progress bar ── */}
       {secondsRemaining !== null && (
         <div className="absolute top-0 left-0 right-0 h-1 bg-zinc-800/80 overflow-hidden">
@@ -169,12 +179,14 @@ export const ActionBar: React.FC<ActionBarProps> = ({
       )}
 
       {/* ── Main 4 Action Buttons Row matching Screen 5 (Fold, Check, Call, Raise) ── */}
-      <div className="flex items-stretch gap-2 w-full">
+      <div className={`flex items-stretch w-full ${compact ? 'gap-1.5' : 'gap-2'}`}>
         {/* Fold - Screen 5 Dark Charcoal Button */}
         {canFold && (
           <button
             onClick={() => onAction('fold')}
-            className="flex-1 min-h-[48px] py-2.5 sm:py-3 bg-[#141822] hover:bg-[#1a202c] text-zinc-300 hover:text-white font-bold rounded-2xl border border-zinc-800 hover:border-zinc-700 transition active:scale-95 text-xs sm:text-sm tracking-wide flex items-center justify-center shadow-lg"
+            className={`flex-1 bg-[#141822] hover:bg-[#1a202c] text-zinc-300 hover:text-white font-bold border border-zinc-800 hover:border-zinc-700 transition active:scale-95 text-xs tracking-wide flex items-center justify-center shadow-lg ${
+              compact ? 'min-h-[36px] py-1.5 rounded-xl' : 'min-h-[48px] py-2.5 sm:py-3 rounded-2xl sm:text-sm'
+            }`}
           >
             Fold
           </button>
@@ -184,7 +196,9 @@ export const ActionBar: React.FC<ActionBarProps> = ({
         {canCheck && (
           <button
             onClick={() => onAction('check')}
-            className="flex-1 min-h-[48px] py-2.5 sm:py-3 bg-[#064e3b] hover:bg-[#047857] text-emerald-100 font-bold rounded-2xl border border-emerald-500/50 transition active:scale-95 text-xs sm:text-sm tracking-wide flex items-center justify-center shadow-lg"
+            className={`flex-1 bg-[#064e3b] hover:bg-[#047857] text-emerald-100 font-bold border border-emerald-500/50 transition active:scale-95 text-xs tracking-wide flex items-center justify-center shadow-lg ${
+              compact ? 'min-h-[36px] py-1.5 rounded-xl' : 'min-h-[48px] py-2.5 sm:py-3 rounded-2xl sm:text-sm'
+            }`}
           >
             Check
           </button>
@@ -194,7 +208,9 @@ export const ActionBar: React.FC<ActionBarProps> = ({
         {callAction && (
           <button
             onClick={() => onAction('call')}
-            className="flex-1 min-h-[48px] py-2.5 sm:py-3 bg-[#1e40af] hover:bg-[#1d4ed8] text-blue-100 font-bold rounded-2xl border border-blue-500/50 transition active:scale-95 text-xs sm:text-sm tracking-wide flex items-center justify-center gap-1.5 shadow-lg"
+            className={`flex-1 bg-[#1e40af] hover:bg-[#1d4ed8] text-blue-100 font-bold border border-blue-500/50 transition active:scale-95 text-xs tracking-wide flex items-center justify-center gap-1.5 shadow-lg ${
+              compact ? 'min-h-[36px] py-1.5 rounded-xl' : 'min-h-[48px] py-2.5 sm:py-3 rounded-2xl sm:text-sm'
+            }`}
           >
             <span>Call</span>
             <span className="font-mono text-blue-200 font-bold">
@@ -208,12 +224,14 @@ export const ActionBar: React.FC<ActionBarProps> = ({
           <div className="flex-1 flex gap-1">
             <button
               onClick={() => onAction(raiseAction.type, raiseAmount)}
-              className="flex-1 min-h-[48px] py-2 sm:py-2.5 bg-gradient-to-r from-amber-500 via-amber-400 to-yellow-500 hover:from-amber-400 hover:to-yellow-400 text-zinc-950 font-black rounded-2xl border border-yellow-300 transition active:scale-95 text-xs uppercase tracking-wide flex flex-col items-center justify-center leading-tight shadow-xl"
+              className={`flex-1 bg-gradient-to-r from-amber-500 via-amber-400 to-yellow-500 hover:from-amber-400 hover:to-yellow-400 text-zinc-950 font-black border border-yellow-300 transition active:scale-95 text-xs uppercase tracking-wide flex flex-col items-center justify-center leading-tight shadow-xl ${
+                compact ? 'min-h-[36px] py-1 rounded-xl' : 'min-h-[48px] py-2 sm:py-2.5 rounded-2xl'
+              }`}
             >
               <span className="text-[10px] sm:text-xs">
                 {raiseAction.type === 'bet' ? 'Bet' : 'Raise To'}
               </span>
-              <span className="text-xs sm:text-sm font-mono font-black text-zinc-950">
+              <span className={`font-mono font-black text-zinc-950 ${compact ? 'text-xs' : 'text-xs sm:text-sm'}`}>
                 {formatRupee(raiseAmount)}
               </span>
             </button>
@@ -221,7 +239,9 @@ export const ActionBar: React.FC<ActionBarProps> = ({
             {/* Toggle Raise Slider */}
             <button
               onClick={() => setShowRaiseSlider(!showRaiseSlider)}
-              className="px-2.5 bg-zinc-900 hover:bg-zinc-800 text-amber-400 rounded-2xl border border-zinc-700 transition flex items-center justify-center"
+              className={`bg-zinc-900 hover:bg-zinc-800 text-amber-400 border border-zinc-700 transition flex items-center justify-center ${
+                compact ? 'px-2 rounded-xl' : 'px-2.5 rounded-2xl'
+              }`}
               title="Adjust Bet Size"
             >
               {showRaiseSlider ? <ChevronDown className="w-4 h-4" /> : <ChevronUp className="w-4 h-4" />}
@@ -233,7 +253,9 @@ export const ActionBar: React.FC<ActionBarProps> = ({
         {!raiseAction && canAllIn && (
           <button
             onClick={() => onAction('all-in')}
-            className="flex-1 min-h-[48px] py-2.5 sm:py-3 bg-gradient-to-r from-rose-600 to-amber-600 text-white font-black rounded-2xl border border-amber-400 transition active:scale-95 text-xs sm:text-sm uppercase tracking-wide shadow-xl"
+            className={`flex-1 bg-gradient-to-r from-rose-600 to-amber-600 text-white font-black border border-amber-400 transition active:scale-95 text-xs uppercase tracking-wide shadow-xl ${
+              compact ? 'min-h-[36px] py-1.5 rounded-xl' : 'min-h-[48px] py-2.5 sm:py-3 rounded-2xl sm:text-sm'
+            }`}
           >
             All-In ({formatRupee(myChips)})
           </button>
