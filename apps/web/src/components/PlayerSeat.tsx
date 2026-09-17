@@ -24,6 +24,8 @@ interface PlayerSeatProps {
   chipPlacement?: 'top' | 'bottom' | 'none';
   onKickBot?: (botId: string) => void;
   isHost?: boolean;
+  playerCount?: number;
+  isMobilePortrait?: boolean;
 }
 
 export const PlayerSeat: React.FC<PlayerSeatProps> = ({
@@ -44,11 +46,16 @@ export const PlayerSeat: React.FC<PlayerSeatProps> = ({
   chipPlacement = 'top',
   onKickBot,
   isHost = false,
+  playerCount = 2,
+  isMobilePortrait = false,
 }) => {
   const isDealer = player.seatIndex === dealerSeat;
   const isSB = player.seatIndex === smallBlindSeat;
   const isBB = player.seatIndex === bigBlindSeat;
   const [imgError, setImgError] = useState(false);
+
+  // Ultra-compact mode: ≥6 players on mobile portrait (not for "me" seat)
+  const isUltraCompact = isMobilePortrait && playerCount >= 6 && !isMe;
 
   // Compute portrait avatar URL (realistic human personas)
   const avatarUrl = React.useMemo(() => {
@@ -100,14 +107,14 @@ export const PlayerSeat: React.FC<PlayerSeatProps> = ({
     >
       {/* Current bet chip badge above seat (for bottom half players) */}
       {player.currentBet > 0 && chipPlacement === 'top' && (
-        <div className="mb-1 z-20">
-          <ChipStack amount={player.currentBet} size="sm" />
+        <div className="mb-0.5 z-20">
+          <ChipStack amount={player.currentBet} size={isUltraCompact ? 'xs' : 'sm'} />
         </div>
       )}
 
       {/* ── Seat Pod ── */}
       <div
-        className={`relative flex items-center gap-2 rounded-2xl bg-zinc-950/90 backdrop-blur-md border shadow-2xl transition-all duration-300 ${
+        className={`relative flex items-center gap-1.5 rounded-2xl bg-zinc-950/90 backdrop-blur-md border shadow-2xl transition-all duration-300 ${
           player.isTurn
             ? 'border-amber-400 ring-2 ring-amber-400/40 active-player-glow'
             : isSpeaking
@@ -115,10 +122,10 @@ export const PlayerSeat: React.FC<PlayerSeatProps> = ({
             : isMe
             ? 'border-emerald-500/60 ring-1 ring-emerald-500/20'
             : 'border-zinc-800'
-        } ${compact ? 'px-2 py-1' : 'px-3 py-1.5'}`}
+        } ${isUltraCompact ? 'px-1.5 py-0.5' : compact ? 'px-2 py-1' : 'px-3 py-1.5'}`}
         style={{
-          minWidth: compact ? '80px' : '110px',
-          maxWidth: compact ? '150px' : '200px',
+          minWidth: isUltraCompact ? '64px' : compact ? '80px' : '110px',
+          maxWidth: isUltraCompact ? '110px' : compact ? '150px' : '200px',
         }}
       >
         {/* Avatar with speaking wave, dealer button, & turn countdown ring */}
@@ -165,7 +172,7 @@ export const PlayerSeat: React.FC<PlayerSeatProps> = ({
 
           <div
             className={`relative rounded-full p-0.5 shadow-md flex items-center justify-center transition-all duration-500 overflow-hidden ${
-              compact ? 'w-8 h-8 sm:w-9 sm:h-9' : 'w-10 h-10 sm:w-12 sm:h-12'
+              isUltraCompact ? 'w-6 h-6' : compact ? 'w-8 h-8 sm:w-9 sm:h-9' : 'w-10 h-10 sm:w-12 sm:h-12'
             } ${
               isWinner
                 ? 'ring-4 ring-cyan-400 shadow-[0_0_24px_#00e5ff,0_0_42px_rgba(6,182,212,0.85)] scale-110 z-30 bg-cyan-400'
@@ -184,10 +191,22 @@ export const PlayerSeat: React.FC<PlayerSeatProps> = ({
             ) : (
               <div
                 className={`w-full h-full rounded-full bg-zinc-900 flex items-center justify-center font-black text-amber-300 ${
-                  compact ? 'text-[9px]' : 'text-xs'
+                  isUltraCompact ? 'text-[8px]' : compact ? 'text-[9px]' : 'text-xs'
                 }`}
               >
                 {player.name.slice(0, 2).toUpperCase()}
+              </div>
+            )}
+
+            {/* Folded / All-in overlay indicator (ultra-compact only) */}
+            {isUltraCompact && player.hasFolded && (
+              <div className="absolute inset-0 rounded-full bg-zinc-950/60 flex items-center justify-center">
+                <span className="text-[7px] font-mono font-bold text-zinc-400">F</span>
+              </div>
+            )}
+            {isUltraCompact && player.isAllIn && !player.hasFolded && (
+              <div className="absolute inset-0 rounded-full bg-rose-950/60 flex items-center justify-center animate-pulse">
+                <span className="text-[7px] font-mono font-bold text-rose-300">A</span>
               </div>
             )}
           </div>
@@ -216,7 +235,7 @@ export const PlayerSeat: React.FC<PlayerSeatProps> = ({
           <div className="flex items-center gap-1 min-w-0">
             <span
               className={`font-bold text-zinc-100 truncate leading-tight ${
-                compact ? 'text-[11px]' : 'text-xs'
+                isUltraCompact ? 'text-[9px]' : compact ? 'text-[11px]' : 'text-xs'
               }`}
               title={player.name}
             >
@@ -227,7 +246,7 @@ export const PlayerSeat: React.FC<PlayerSeatProps> = ({
                 YOU
               </span>
             )}
-            {player.isBot && (
+            {player.isBot && !isUltraCompact && (
               <span
                 className={`text-[7.5px] px-1 py-0.5 rounded font-mono font-black flex-shrink-0 leading-none tracking-wider border ${
                   player.difficulty === 'easy'
@@ -249,7 +268,7 @@ export const PlayerSeat: React.FC<PlayerSeatProps> = ({
           <div className="mt-0.5 flex items-center gap-1">
             <span
               className={`text-amber-300 font-mono font-bold leading-none ${
-                compact ? 'text-[10px]' : 'text-[11px]'
+                isUltraCompact ? 'text-[9px]' : compact ? 'text-[10px]' : 'text-[11px]'
               }`}
             >
               {formatRupee(player.chips)}
@@ -306,46 +325,54 @@ export const PlayerSeat: React.FC<PlayerSeatProps> = ({
       </div>
 
       {/* Cards: face down during play, revealed at showdown */}
+      {/* In ultra-compact mode, hide face-down cards (zero information) but still show revealed showdown cards */}
       {!isMe && cardsToDisplay && cardsToDisplay.length > 0 && (!player.hasFolded || isWinner) && (
-        <div
-          className={`flex items-center mt-1 transition-all duration-300 ${
-            isWinner ? '-space-x-1 sm:space-x-1 scale-100 z-30' : '-space-x-4 sm:-space-x-3'
-          }`}
-        >
-          {cardsToDisplay.map((c, i) => {
-            const isWinning = hasWinningCard(c);
-            const isDim = isHandComplete && !isWinning;
-            return (
-              <CardView
-                key={i}
-                card={c}
-                size="sm"
-                isHighlighted={isWinning}
-                isDimmed={isDim}
-                dealDelayMs={i * 100}
-                tiltDeg={!isWinner ? (i === 0 ? -4 : 4) : 0}
-              />
-            );
-          })}
-        </div>
+        (() => {
+          const allHidden = cardsToDisplay.every((c: any) => c && 'hidden' in c && c.hidden);
+          // Skip rendering face-down cards in ultra-compact mode
+          if (isUltraCompact && allHidden) return null;
+          return (
+            <div
+              className={`flex items-center mt-0.5 transition-all duration-300 ${
+                isWinner ? '-space-x-1 sm:space-x-1 scale-100 z-30' : '-space-x-4 sm:-space-x-3'
+              }`}
+            >
+              {cardsToDisplay.map((c, i) => {
+                const isWinning = hasWinningCard(c);
+                const isDim = isHandComplete && !isWinning;
+                return (
+                  <CardView
+                    key={i}
+                    card={c}
+                    size={isUltraCompact ? 'xs' : 'sm'}
+                    isHighlighted={isWinning}
+                    isDimmed={isDim}
+                    dealDelayMs={i * 100}
+                    tiltDeg={!isWinner ? (i === 0 ? -4 : 4) : 0}
+                  />
+                );
+              })}
+            </div>
+          );
+        })()
       )}
 
       {/* Current bet chip badge below seat (towards table center for top half players) */}
       {player.currentBet > 0 && chipPlacement === 'bottom' && (
-        <div className="mt-1.5 z-20">
-          <ChipStack amount={player.currentBet} size="sm" />
+        <div className="mt-1 z-20">
+          <ChipStack amount={player.currentBet} size={isUltraCompact ? 'xs' : 'sm'} />
         </div>
       )}
 
-      {/* Folded badge */}
-      {player.hasFolded && (
+      {/* Folded badge (skip in ultra-compact — shown as avatar overlay instead) */}
+      {player.hasFolded && !isUltraCompact && (
         <div className="mt-0.5 text-[9px] font-mono text-zinc-500 uppercase tracking-widest">
           Folded
         </div>
       )}
 
-      {/* All-in badge */}
-      {player.isAllIn && !player.hasFolded && (
+      {/* All-in badge (skip in ultra-compact — shown as avatar overlay instead) */}
+      {player.isAllIn && !player.hasFolded && !isUltraCompact && (
         <div className="mt-0.5 text-[9px] font-mono font-bold text-rose-400 uppercase tracking-widest animate-pulse">
           ALL-IN
         </div>

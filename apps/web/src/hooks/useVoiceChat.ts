@@ -11,6 +11,7 @@ interface PeerConnection {
   makingOffer: boolean;
   ignoreOffer: boolean;
   stream?: MediaStream;
+  disconnectTimer?: ReturnType<typeof setTimeout>;
 }
 
 // Multi-network ICE servers (Google STUN + Cloudflare STUN + Metered OpenRelay TURN for strict NATs / Mobile cellular)
@@ -159,19 +160,28 @@ export function useVoiceChat(socket: Socket | null, roomCode?: string, _myPlayer
     };
   }, [unlockAllAudio]);
 
-  // Clean up all peer connections & audio elements
-  const cleanup = useCallback(() => {
-    if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
-    if (silenceTimerRef.current) clearTimeout(silenceTimerRef.current);
-
-    peersRef.current.forEach(({ pc, audioEl }) => {
+  // Tear down all peer connections but KEEP local mic stream alive
+  // (used on socket reconnect — we want to re-use the existing mic)
+  const teardownPeers = useCallback(() => {
+    peersRef.current.forEach(({ pc, audioEl, disconnectTimer }) => {
       try {
+        if (disconnectTimer) clearTimeout(disconnectTimer);
         pc.close();
         audioEl.srcObject = null;
         audioEl.remove();
       } catch (e) {}
     });
     peersRef.current.clear();
+    setSpeakingPeers({});
+    setMutedPeers({});
+  }, []);
+
+  // Full cleanup: tear down peers AND stop local mic
+  const cleanup = useCallback(() => {
+    if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
+    if (silenceTimerRef.current) clearTimeout(silenceTimerRef.current);
+
+    teardownPeers();
 
     if (localStreamRef.current) {
       localStreamRef.current.getTracks().forEach((t) => t.stop());
@@ -185,7 +195,7 @@ export function useVoiceChat(socket: Socket | null, roomCode?: string, _myPlayer
     setIsSpeaking(false);
     setSpeakingPeers({});
     setMutedPeers({});
-  }, []);
+  }, [teardownPeers]);
 
   // Voice Activity Detection (VAD) for visual speaking indicator
   const setupVAD = (stream: MediaStream) => {
@@ -332,24 +342,64 @@ export function useVoiceChat(socket: Socket | null, roomCode?: string, _myPlayer
         audioEl.volume = 1.0;
         audioEl.muted = false;
 
-        const playPromise = audioEl.play();
-        if (playPromise !== undefined) {
-          playPromise.catch((err) => {
-            console.info('Audio playback waiting for user tap/click on Safari/iOS:', err);
-          });
-        }
+        // Attempt playback — if blocked by autoplay policy, register a one-time
+        // user gesture listener that retries play on the next tap/click/key.
+        const tryPlay = () => {
+          const p = audioEl.play();
+          if (p !== undefined) {
+            p.catch(() => {
+              // Autoplay blocked — register one-time unlock on next user gesture
+              const unlockOnce = () => {
+                audioEl.play().catch(() => {});
+                window.removeEventListener('click', unlockOnce);
+                window.removeEventListener('touchstart', unlockOnce);
+                window.removeEventListener('keydown', unlockOnce);
+              };
+              window.addEventListener('click', unlockOnce, { once: true, passive: true });
+              window.addEventListener('touchstart', unlockOnce, { once: true, passive: true });
+              window.addEventListener('keydown', unlockOnce, { once: true, passive: true });
+            });
+          }
+        };
+        tryPlay();
       };
 
+      // FIX #3: ICE restart on both 'disconnected' (after 3s timeout) and 'failed'
       pc.onconnectionstatechange = () => {
-        if (pc.connectionState === 'failed') {
+        const state = pc.connectionState;
+        if (state === 'disconnected') {
+          // On mobile, connections often go to 'disconnected' briefly (screen lock, app switch).
+          // Wait 3 seconds — if still disconnected, restart ICE.
+          peerEntry.disconnectTimer = setTimeout(() => {
+            if (pc.connectionState === 'disconnected' || pc.connectionState === 'failed') {
+              console.warn('WebRTC peer still disconnected after 3s, restarting ICE:', peerSocketId);
+              try { pc.restartIce(); } catch (e) {}
+            }
+          }, 3000);
+        } else if (state === 'connected') {
+          // Clear any pending disconnect timer
+          if (peerEntry.disconnectTimer) {
+            clearTimeout(peerEntry.disconnectTimer);
+            peerEntry.disconnectTimer = undefined;
+          }
+        } else if (state === 'failed') {
           console.warn('WebRTC connection failed with peer, restarting ICE:', peerSocketId);
-          try {
-            pc.restartIce();
-          } catch (e) {}
+          try { pc.restartIce(); } catch (e) {}
         }
       };
 
-      // 2. Pre-allocate audio transceiver in sendrecv mode
+      // Also monitor ICE connection state as a secondary signal
+      pc.oniceconnectionstatechange = () => {
+        if (pc.iceConnectionState === 'failed') {
+          console.warn('ICE connection failed, restarting:', peerSocketId);
+          try { pc.restartIce(); } catch (e) {}
+        }
+      };
+
+      // 2. Pre-allocate audio transceiver in sendrecv mode.
+      // If we already have a live mic track, attach it immediately.
+      // The transceiver's addTransceiver call triggers onnegotiationneeded,
+      // which handles creating and sending the offer — no explicit createOffer needed.
       try {
         const liveTrack = localStreamRef.current?.getAudioTracks().find((t) => t.readyState === 'live');
         if (liveTrack && localStreamRef.current) {
@@ -366,25 +416,43 @@ export function useVoiceChat(socket: Socket | null, roomCode?: string, _myPlayer
         console.warn('addTransceiver note:', e);
       }
 
-      // 3. If initiator, guarantee initial offer is created and dispatched immediately
-      if (initiator) {
-        pc.createOffer()
-          .then((offer) => pc.setLocalDescription(offer))
-          .then(() => {
-            if (socketRef.current && pc.localDescription) {
-              socketRef.current.emit('voice:signal', {
-                toSocketId: peerSocketId,
-                signal: { description: pc.localDescription },
-              });
-            }
-          })
-          .catch((err) => console.warn('Initiator initial offer error:', err));
-      }
+      // FIX #1: Removed explicit createOffer for initiators.
+      // The addTransceiver call above triggers onnegotiationneeded which creates
+      // and sends the offer automatically. Having both caused a double-offer race
+      // that clobbered the remote peer's SDP answer.
 
       return pc;
     },
     []
   );
+
+  // Helper: attach mic track to all existing peer connections
+  const attachTrackToPeers = async (track: MediaStreamTrack, stream: MediaStream) => {
+    for (const [peerSocketId, peer] of peersRef.current.entries()) {
+      try {
+        if (peer.transceiver?.sender) {
+          // FIX #2: Robust replaceTrack with fallback
+          try {
+            await peer.transceiver.sender.replaceTrack(track);
+          } catch (replaceErr) {
+            // Fallback: remove old sender, add new track (triggers renegotiation)
+            console.warn('replaceTrack failed, falling back to addTrack:', peerSocketId, replaceErr);
+            try {
+              peer.pc.removeTrack(peer.transceiver.sender);
+            } catch (e) {}
+            peer.pc.addTrack(track, stream);
+          }
+          if (peer.transceiver.direction !== 'sendrecv') {
+            peer.transceiver.direction = 'sendrecv';
+          }
+        } else {
+          peer.pc.addTrack(track, stream);
+        }
+      } catch (e) {
+        console.warn('Failed to attach mic track to peer:', peerSocketId, e);
+      }
+    }
+  };
 
   // Join Voice Call (request microphone and unmute)
   const startVoice = useCallback(async () => {
@@ -401,14 +469,48 @@ export function useVoiceChat(socket: Socket | null, roomCode?: string, _myPlayer
       }
       track.enabled = true;
 
+      // FIX #4: Auto re-acquire mic when track ends (mobile screen lock, OS revoke, etc.)
       track.onended = () => {
+        console.warn('Mic track ended (screen lock / OS revoke) — attempting re-acquisition...');
         localStreamRef.current = null;
-        setIsVoiceActive(false);
-        setIsMuted(true);
-        isVoiceActiveRef.current = false;
-        isMutedRef.current = true;
-        if (socketRef.current && roomCodeRef.current) {
-          socketRef.current.emit('voice:state', { roomCode: roomCodeRef.current, isMuted: true });
+
+        // Only attempt re-acquire if voice was active (user had mic on)
+        if (isVoiceActiveRef.current && !isMutedRef.current) {
+          // Small delay to let OS release the device
+          setTimeout(async () => {
+            try {
+              const newStream = await acquireMicrophoneStream();
+              const newTrack = newStream.getAudioTracks()[0];
+              if (!newTrack) throw new Error('No track after re-acquire');
+              newTrack.enabled = !isMutedRef.current;
+
+              // Re-wire onended for the new track too
+              newTrack.onended = track.onended;
+
+              localStreamRef.current = newStream;
+              setupVAD(newStream);
+              await attachTrackToPeers(newTrack, newStream);
+              console.info('Mic re-acquired successfully after track end.');
+            } catch (reacquireErr) {
+              console.warn('Mic re-acquisition failed:', reacquireErr);
+              setIsVoiceActive(false);
+              setIsMuted(true);
+              isVoiceActiveRef.current = false;
+              isMutedRef.current = true;
+              if (socketRef.current && roomCodeRef.current) {
+                socketRef.current.emit('voice:state', { roomCode: roomCodeRef.current, isMuted: true });
+              }
+              setMicError('Microphone was disconnected. Tap mic to reconnect.');
+            }
+          }, 500);
+        } else {
+          setIsVoiceActive(false);
+          setIsMuted(true);
+          isVoiceActiveRef.current = false;
+          isMutedRef.current = true;
+          if (socketRef.current && roomCodeRef.current) {
+            socketRef.current.emit('voice:state', { roomCode: roomCodeRef.current, isMuted: true });
+          }
         }
       };
 
@@ -419,22 +521,12 @@ export function useVoiceChat(socket: Socket | null, roomCode?: string, _myPlayer
       isMutedRef.current = false;
       setupVAD(stream);
 
-      // Attach microphone track to all peer connections
-      for (const [peerSocketId, peer] of peersRef.current.entries()) {
-        try {
-          if (peer.transceiver?.sender) {
-            await peer.transceiver.sender.replaceTrack(track);
-            peer.transceiver.direction = 'sendrecv';
-          } else {
-            peer.pc.addTrack(track, stream);
-          }
-        } catch (e) {
-          console.warn('Failed to attach mic track to peer:', peerSocketId, e);
-        }
-      }
+      // FIX #2: Attach mic track to all peer connections with robust fallback
+      await attachTrackToPeers(track, stream);
 
-      // Notify server
-      socketRef.current.emit('voice:join', { roomCode: roomCodeRef.current });
+      // FIX #2: Don't re-emit voice:join here — it was already emitted on mount
+      // in the auto-join useEffect. Re-emitting causes duplicate peer entries.
+      // Only emit the mute state update.
       socketRef.current.emit('voice:state', { roomCode: roomCodeRef.current, isMuted: false });
     } catch (err: any) {
       console.warn('Microphone access failed:', err);
@@ -502,27 +594,69 @@ export function useVoiceChat(socket: Socket | null, roomCode?: string, _myPlayer
     socket.emit('voice:join', { roomCode });
     socket.emit('voice:state', { roomCode, isMuted: true });
 
-    // Handle Socket.io reconnects: re-emit voice:join when socket reconnects
+    // Handle Socket.io reconnects:
+    // On reconnect the socket gets a NEW socket.id, so old peer connections
+    // have stale socket IDs for signaling. We must tear them all down and
+    // let voice:peers response re-create them with the correct IDs.
     const handleReconnect = () => {
+      console.info('Socket reconnected — tearing down stale voice peers and re-joining.');
+      teardownPeers();
+
       socket.emit('voice:join', { roomCode });
       socket.emit('voice:state', { roomCode, isMuted: isMutedRef.current });
+      // voice:peers response will re-create peer connections.
+      // createPeer already attaches localStreamRef's live track if available.
     };
 
     socket.on('connect', handleReconnect);
 
+    // Resume audio playback when page becomes visible again (mobile tab switch)
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible') {
+        // Re-play all audio elements that may have been suspended
+        peersRef.current.forEach(({ audioEl }) => {
+          if (audioEl.paused && audioEl.srcObject) {
+            audioEl.play().catch(() => {});
+          }
+        });
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibility);
+
     return () => {
       socket.off('connect', handleReconnect);
+      document.removeEventListener('visibilitychange', handleVisibility);
       socket.emit('voice:leave', { roomCode });
     };
-  }, [socket, roomCode]);
+  }, [socket, roomCode, teardownPeers]);
 
   // Socket signaling listeners with W3C Perfect Negotiation
   useEffect(() => {
     if (!socket || !roomCode) return;
 
-    // Existing peers in voice room
+    // Existing peers in voice room.
+    // On reconnect this is called after teardownPeers, so peersRef is clean.
+    // But if called without a reconnect (e.g. duplicate voice:join), we must
+    // skip peers we already have a connection for.
     const handlePeers = (data: { peers: { playerId: string; socketId: string }[] }) => {
       if (!Array.isArray(data?.peers)) return;
+
+      // Build set of current valid peer socket IDs from server response
+      const validPeerIds = new Set(data.peers.map((p) => p.socketId));
+
+      // Clean up any stale peers not in the server's current list
+      for (const [existingId, existingPeer] of peersRef.current.entries()) {
+        if (!validPeerIds.has(existingId)) {
+          try {
+            if (existingPeer.disconnectTimer) clearTimeout(existingPeer.disconnectTimer);
+            existingPeer.pc.close();
+            existingPeer.audioEl.srcObject = null;
+            existingPeer.audioEl.remove();
+          } catch (e) {}
+          peersRef.current.delete(existingId);
+        }
+      }
+
       data.peers.forEach((peer) => {
         createPeer(peer.socketId, peer.playerId, true);
       });

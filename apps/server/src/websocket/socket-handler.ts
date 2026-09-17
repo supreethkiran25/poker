@@ -659,6 +659,14 @@ export function registerSocketHandlers(io: Server): void {
         const playerName = sessionData.player.name;
         room.removePlayer(sessionData.player.playerId);
         socket.leave(`room:${room.code}`);
+
+        // Also leave voice room and notify voice peers
+        socket.leave(`voice:${room.code}`);
+        socket.to(`voice:${room.code}`).emit('voice:peer-left', {
+          playerId: sessionData.player.playerId,
+          socketId: socket.id,
+        });
+
         sessionData.currentRoomCode = undefined;
 
         // If no human players remain connected in the room, pause bots

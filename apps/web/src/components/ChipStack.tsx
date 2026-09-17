@@ -3,7 +3,7 @@ import { formatRupee, VIRTUAL_CURRENCY_SYMBOL } from '@poker/shared';
 
 interface ChipStackProps {
   amount: number;
-  size?: 'sm' | 'md';
+  size?: 'xs' | 'sm' | 'md';
   showLabel?: boolean;
 }
 
@@ -26,10 +26,12 @@ export const ChipStack: React.FC<ChipStackProps> = ({
   else if (amount >= 100) chipColor = 'from-emerald-600 to-emerald-800 border-emerald-400';
   else if (amount >= 50) chipColor = 'from-rose-600 to-rose-800 border-rose-400';
 
-  const chipSize = size === 'sm' ? 'w-4 h-4 text-[9px]' : 'w-5 h-5 text-[10px]';
+  const chipSize = size === 'xs' ? 'w-3 h-3 text-[7px]' : size === 'sm' ? 'w-4 h-4 text-[9px]' : 'w-5 h-5 text-[10px]';
 
   return (
-    <div className="inline-flex items-center gap-1.5 bg-black/70 backdrop-blur-md px-2 py-0.5 rounded-full border border-amber-500/30 shadow-chip">
+    <div className={`inline-flex items-center gap-1 bg-black/70 backdrop-blur-md rounded-full border border-amber-500/30 shadow-chip ${
+      size === 'xs' ? 'px-1.5 py-0' : 'px-2 py-0.5'
+    }`}>
       <div className="relative flex items-center justify-center">
         <div
           className={`${chipSize} rounded-full bg-gradient-to-tr ${chipColor} border shadow-inner flex items-center justify-center font-black text-white`}
@@ -38,7 +40,9 @@ export const ChipStack: React.FC<ChipStackProps> = ({
         </div>
       </div>
       {showLabel && (
-        <span className="font-mono font-bold text-amber-200 text-xs tracking-tight">
+        <span className={`font-mono font-bold text-amber-200 tracking-tight ${
+          size === 'xs' ? 'text-[10px]' : 'text-xs'
+        }`}>
           {formatRupee(amount)}
         </span>
       )}

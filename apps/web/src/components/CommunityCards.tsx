@@ -8,6 +8,7 @@ interface CommunityCardsProps {
   phase: GamePhase;
   winningCards?: Card[];
   compact?: boolean;
+  ultraCompact?: boolean;
 }
 
 export const CommunityCards: React.FC<CommunityCardsProps> = ({
@@ -15,6 +16,7 @@ export const CommunityCards: React.FC<CommunityCardsProps> = ({
   phase,
   winningCards,
   compact = false,
+  ultraCompact = false,
 }) => {
   const prevCardCountRef = useRef(cards.length);
   const isWaiting = phase === 'WAITING_FOR_PLAYERS' || phase === 'STARTING';
@@ -31,7 +33,7 @@ export const CommunityCards: React.FC<CommunityCardsProps> = ({
   if (isWaiting) return null;
 
   return (
-    <div className={`flex items-center ${compact ? 'gap-1' : 'gap-1.5 sm:gap-2'}`}>
+    <div className={`flex items-center ${ultraCompact ? 'gap-0.5' : compact ? 'gap-1' : 'gap-1.5 sm:gap-2'}`}>
       {[0, 1, 2, 3, 4].map((idx) => {
         const card = cards[idx];
         if (card) {
@@ -47,7 +49,7 @@ export const CommunityCards: React.FC<CommunityCardsProps> = ({
             <CardView
               key={(card as any).id || idx}
               card={card}
-              size={compact ? 'sm' : 'md'}
+              size={ultraCompact ? 'xs' : compact ? 'sm' : 'md'}
               dealDelayMs={delayMs}
               isHighlighted={isWinningCard}
               isDimmed={isDimmed}
@@ -62,7 +64,7 @@ export const CommunityCards: React.FC<CommunityCardsProps> = ({
           <div
             key={idx}
             className={`${
-              compact ? 'w-[46px] h-[66px] rounded-[5px]' : 'w-[64px] h-[92px] rounded-[6px]'
+              ultraCompact ? 'w-[32px] h-[46px] rounded-[4px]' : compact ? 'w-[46px] h-[66px] rounded-[5px]' : 'w-[64px] h-[92px] rounded-[6px]'
             } border border-amber-500/30 flex flex-col items-center justify-center transition-all bg-[#04190e]/60 backdrop-blur-sm shadow-inner relative group`}
             style={{
               boxShadow: 'inset 0 2px 6px rgba(0,0,0,0.6), 0 1px 2px rgba(251,191,36,0.1)',
@@ -72,17 +74,19 @@ export const CommunityCards: React.FC<CommunityCardsProps> = ({
               className="font-serif select-none"
               style={{
                 color: idx === 1 || idx === 2 ? 'rgba(244,63,94,0.45)' : 'rgba(251,191,36,0.45)',
-                fontSize: compact ? '14px' : '18px',
+                fontSize: ultraCompact ? '10px' : compact ? '14px' : '18px',
               }}
             >
               {slotSuits[idx]}
             </span>
-            <span
-              className="text-[8px] font-mono font-bold tracking-widest uppercase mt-0.5"
-              style={{ color: 'rgba(251, 191, 36, 0.4)' }}
-            >
-              {slotLabels[idx]}
-            </span>
+            {!ultraCompact && (
+              <span
+                className="text-[8px] font-mono font-bold tracking-widest uppercase mt-0.5"
+                style={{ color: 'rgba(251, 191, 36, 0.4)' }}
+              >
+                {slotLabels[idx]}
+              </span>
+            )}
           </div>
         );
       })}

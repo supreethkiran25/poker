@@ -286,6 +286,10 @@ export const PokerTable: React.FC<PokerTableProps> = ({
    * In desktop landscape: rx = 44%, ry = 38%.
    * Opponents spread along the 240° arc passing through the top (270°).
    */
+  // Determine if we’re in a crowded scenario
+  const totalPlayerCount = gameState.players.length;
+  const isCrowded = totalPlayerCount >= 6;
+
   const getOpponentStyle = (seatIndex: number) => {
     const totalOpponents = opponents.length;
     const oppIdx = opponents.findIndex((p) => p.seatIndex === seatIndex);
@@ -298,8 +302,13 @@ export const PokerTable: React.FC<PokerTableProps> = ({
     const angleDeg = totalOpponents === 1 ? 270 : startAngle + (oppIdx + 1) * step;
     const angleRad = (angleDeg * Math.PI) / 180;
 
-    const rx = isPortrait ? (isTablet ? 42 : 39) : (isMobileLandscape ? 44 : 44);
-    const ry = isPortrait ? (isTablet ? 42 : 38) : (isMobileLandscape ? 36 : 38);
+    // Widen oval radii when many players to spread them out more
+    const rx = isPortrait
+      ? (isTablet ? 42 : (isCrowded ? 43 : 39))
+      : (isMobileLandscape ? 44 : 44);
+    const ry = isPortrait
+      ? (isTablet ? 42 : (isCrowded ? 42 : 38))
+      : (isMobileLandscape ? 36 : 38);
     const left = 50 + rx * Math.cos(angleRad);
     const top = 50 + ry * Math.sin(angleRad);
 
@@ -600,6 +609,8 @@ export const PokerTable: React.FC<PokerTableProps> = ({
                     isHandComplete={isHandComplete}
                     onKickBot={(botId) => onRemoveBot && onRemoveBot(botId)}
                     isHost={isHost}
+                    playerCount={totalPlayerCount}
+                    isMobilePortrait={isMobilePortrait}
                   />
                 </div>
               );
@@ -643,10 +654,10 @@ export const PokerTable: React.FC<PokerTableProps> = ({
 
             {/* ── Table Center: Community Cards + Showdown Results (or Pot during active play) ── */}
             <div
-              className="absolute z-20 flex flex-col items-center gap-1.5 sm:gap-2 pointer-events-auto"
+              className="absolute z-20 flex flex-col items-center gap-1 sm:gap-2 pointer-events-auto"
               style={{
                 left: '50%',
-                top: isPortrait ? (isTablet ? '38%' : '42%') : '38%',
+                top: isPortrait ? (isTablet ? '38%' : (isCrowded ? '39%' : '42%')) : '38%',
                 transform: 'translate(-50%, -50%)',
               }}
             >
@@ -716,6 +727,7 @@ export const PokerTable: React.FC<PokerTableProps> = ({
                 phase={gameState.phase}
                 winningCards={winningCards}
                 compact={isPortrait ? !isTablet : isMobileLandscape}
+                ultraCompact={isMobilePortrait && isCrowded}
               />
 
               {/* Phase Badge during active play (Desktop & Tablet only, on phone it's inside Pot badge) */}
@@ -748,7 +760,7 @@ export const PokerTable: React.FC<PokerTableProps> = ({
                 }`}
                 style={{
                   left: '50%',
-                  top: isPortrait ? (isTablet ? '72%' : '76%') : (isMobileLandscape ? '73%' : '74%'),
+                  top: isPortrait ? (isTablet ? '72%' : (isCrowded ? '73%' : '76%')) : (isMobileLandscape ? '73%' : '74%'),
                   transform: 'translate(-50%, -50%)',
                 }}
               >
@@ -762,7 +774,7 @@ export const PokerTable: React.FC<PokerTableProps> = ({
                     <CardView
                       key={idx}
                       card={c}
-                      size={isTablet || (!isPortrait && !isMobileLandscape) ? 'lg' : 'md'}
+                      size={isTablet || (!isPortrait && !isMobileLandscape) ? 'lg' : (isMobilePortrait && isCrowded ? 'sm' : 'md')}
                       dealDelayMs={idx * 140}
                       isInteractive={!me.hasFolded}
                       isHighlighted={isWinning}
@@ -797,13 +809,15 @@ export const PokerTable: React.FC<PokerTableProps> = ({
                   bigBlindSeat={gameState.bigBlindSeat}
                   turnExpiresAt={isMyTurn ? gameState.turnExpiresAt : null}
                   turnDuration={gameState.turnDuration}
-                  compact={false}
+                  compact={isMobilePortrait && isCrowded}
                   chipPlacement={isPortrait ? 'none' : 'top'}
                   isSpeaking={isVoiceActive && !isMuted}
                   isWinner={isMeWinner}
                   winningCards={winningCards}
                   showdownHoleCards={me.holeCards}
                   isHandComplete={isHandComplete}
+                  playerCount={totalPlayerCount}
+                  isMobilePortrait={isMobilePortrait}
                 />
               </div>
             )}
