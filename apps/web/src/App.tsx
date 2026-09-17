@@ -68,14 +68,42 @@ export function App() {
   const [isChatOpen, setIsChatOpen] = useState(false);
   const [initialRoomCode, setInitialRoomCode] = useState<string>('');
 
-  // Extract invite code from pathname /room/:code
+  // Extract invite code from pathname /room/:code or localStorage active room
   useEffect(() => {
     const path = window.location.pathname;
     const match = path.match(/^\/room\/([A-Za-z0-9]+)/);
     if (match) {
       setInitialRoomCode(match[1].toUpperCase());
+    } else {
+      const activeRoom = localStorage.getItem('poker_active_room_code');
+      if (activeRoom) {
+        setInitialRoomCode(activeRoom.toUpperCase());
+      }
     }
   }, []);
+
+  // If join or room error happens while reconnecting, reset room code so user drops to landing
+  useEffect(() => {
+    if (errorNotification) {
+      setInitialRoomCode('');
+    }
+  }, [errorNotification]);
+
+  // Safety fallback: if reconnecting takes longer than 6s, clear and show landing page
+  useEffect(() => {
+    if (initialRoomCode && !roomState) {
+      const timer = setTimeout(() => {
+        if (!roomState) {
+          localStorage.removeItem('poker_active_room_code');
+          setInitialRoomCode('');
+          if (window.location.pathname.startsWith('/room/')) {
+            window.history.pushState({}, '', '/');
+          }
+        }
+      }, 6000);
+      return () => clearTimeout(timer);
+    }
+  }, [initialRoomCode, roomState]);
 
   const handleCreateRoom = (name: string, config: RoomConfig, buyIn?: number) => {
     setShowCreateModal(false);
@@ -124,10 +152,49 @@ export function App() {
         </div>
       )}
 
-      {/* 1. Landing Page (when not inside a room) */}
-      {!roomState && (
+      {/* 0. Reconnecting to ongoing match loader (prevents flashing Landing Page on F5) */}
+      {!roomState && initialRoomCode && (
+        <div className="min-h-screen flex flex-col items-center justify-center bg-[#07090e] px-4">
+          <div className="relative p-8 rounded-3xl bg-zinc-900/90 border border-amber-500/30 backdrop-blur-xl shadow-2xl max-w-sm w-full text-center flex flex-col items-center gap-4 animate-in fade-in zoom-in duration-200">
+            <div className="relative">
+              <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-amber-500/20 to-amber-600/5 border border-amber-500/40 flex items-center justify-center shadow-lg shadow-amber-500/10 animate-pulse">
+                <span className="text-3xl">♠</span>
+              </div>
+            </div>
+            <div>
+              <h2 className="text-lg font-bold text-zinc-100 tracking-wide">
+                Reconnecting to Table
+              </h2>
+              <p className="text-xs font-mono text-amber-400 mt-1 font-semibold">
+                Table #{initialRoomCode}
+              </p>
+            </div>
+            <p className="text-xs text-zinc-400 max-w-xs leading-relaxed">
+              Restoring your active seat, cards, and chip stack...
+            </p>
+            <div className="w-full bg-zinc-800 rounded-full h-1.5 overflow-hidden mt-1">
+              <div className="bg-gradient-to-r from-amber-500 to-amber-300 h-full w-3/4 animate-pulse rounded-full" />
+            </div>
+            <button
+              onClick={() => {
+                localStorage.removeItem('poker_active_room_code');
+                setInitialRoomCode('');
+                if (window.location.pathname.startsWith('/room/')) {
+                  window.history.pushState({}, '', '/');
+                }
+              }}
+              className="mt-2 text-xs text-zinc-400 hover:text-rose-400 transition underline underline-offset-4"
+            >
+              Cancel and return to lobby
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* 1. Landing Page (when not inside a room and not reconnecting) */}
+      {!roomState && !initialRoomCode && (
         <LandingPage
-          initialRoomCode={initialRoomCode}
+          initialRoomCode=""
           playerName={playerName}
           onQuickPlayBots={(botCount, difficulty) => quickPlayBots(undefined, botCount, difficulty)}
           onOpenCreate={() => setShowCreateModal(true)}

@@ -95,14 +95,17 @@ export function useSocket() {
       setIsConnected(true);
       // Handshake with stored token + active room code if currently at a table
       const token = localStorage.getItem('poker_session_token');
+      const storedPlayerId = localStorage.getItem('poker_player_id');
       const name = localStorage.getItem('poker_player_name');
       const av = localStorage.getItem('poker_avatar');
       const currentRoom =
         roomStateRef.current?.code ||
-        window.location.pathname.match(/^\/room\/([A-Za-z0-9]+)/)?.[1]?.toUpperCase();
+        window.location.pathname.match(/^\/room\/([A-Za-z0-9]+)/)?.[1]?.toUpperCase() ||
+        localStorage.getItem('poker_active_room_code')?.toUpperCase();
 
       socket.emit('auth:handshake', {
         sessionToken: token,
+        playerId: storedPlayerId || undefined,
         name,
         avatar: av,
         roomCode: currentRoom,
@@ -123,16 +126,18 @@ export function useSocket() {
       localStorage.setItem('poker_player_name', data.name);
       localStorage.setItem('poker_avatar', data.avatar);
 
-      // If user is at a /room/:code URL but not yet recognized, re-join
+      // If user is at a /room/:code URL or has an active table stored, re-join if not already restored
       const currentRoom =
         roomStateRef.current?.code ||
-        window.location.pathname.match(/^\/room\/([A-Za-z0-9]+)/)?.[1]?.toUpperCase();
+        window.location.pathname.match(/^\/room\/([A-Za-z0-9]+)/)?.[1]?.toUpperCase() ||
+        localStorage.getItem('poker_active_room_code')?.toUpperCase();
       if (currentRoom && !roomStateRef.current) {
         socket.emit('room:join', {
           roomCode: currentRoom,
           playerName: data.name,
           avatar: data.avatar,
           sessionToken: data.sessionToken,
+          playerId: data.playerId,
         });
       }
     });
@@ -141,6 +146,7 @@ export function useSocket() {
       setRoomState(data.roomState);
       roomStateRef.current = data.roomState;
       setGameState(data.gameState);
+      localStorage.setItem('poker_active_room_code', data.roomCode);
       window.history.pushState({}, '', `/room/${data.roomCode}`);
     });
 
@@ -152,6 +158,7 @@ export function useSocket() {
       setPlayerId(data.playerId);
       localStorage.setItem('poker_session_token', data.sessionToken);
       localStorage.setItem('poker_player_id', data.playerId);
+      localStorage.setItem('poker_active_room_code', data.roomCode);
       window.history.pushState({}, '', `/room/${data.roomCode}`);
     });
 
@@ -196,6 +203,12 @@ export function useSocket() {
     });
 
     socket.on('error:notification', (err: { code: string; message: string }) => {
+      if (err.code === 'ROOM_NOT_FOUND') {
+        localStorage.removeItem('poker_active_room_code');
+        if (window.location.pathname.startsWith('/room/')) {
+          window.history.pushState({}, '', '/');
+        }
+      }
       setErrorNotification(err.message);
       setTimeout(() => setErrorNotification(null), 4000);
     });
@@ -282,6 +295,7 @@ export function useSocket() {
       if (!socketRef.current) return;
       const av = selectedAvatar || avatar;
       const token = localStorage.getItem('poker_session_token');
+      const storedPlayerId = localStorage.getItem('poker_player_id');
       setPlayerName(name);
       setAvatar(av);
       localStorage.setItem('poker_player_name', name);
@@ -292,6 +306,7 @@ export function useSocket() {
         playerName: name,
         avatar: av,
         sessionToken: token || undefined,
+        playerId: storedPlayerId || undefined,
         buyIn,
       });
     },
@@ -302,6 +317,7 @@ export function useSocket() {
     if (!socketRef.current || !roomState) return;
     socketRef.current.emit('room:leave', { roomCode: roomState.code });
     roomStateRef.current = null;
+    localStorage.removeItem('poker_active_room_code');
     setRoomState(null);
     setGameState(null);
     window.history.pushState({}, '', '/');

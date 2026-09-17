@@ -25,6 +25,7 @@ export const JoinRoomSchema = z.object({
   playerName: z.string().trim().min(1).max(25),
   avatar: z.string().default('avatar-1'),
   sessionToken: z.string().optional(),
+  playerId: z.string().optional(),
   buyIn: z.number().int().min(0).optional(),
 });
 

@@ -109,6 +109,13 @@ export function getSession(sessionToken: string): PlayerSessionRecord | null {
   return row || null;
 }
 
+export function getSessionByPlayerId(playerId: string): PlayerSessionRecord | null {
+  const database = getDatabase();
+  const stmt = database.prepare(`SELECT * FROM sessions WHERE player_id = ? ORDER BY last_active_at DESC LIMIT 1`);
+  const row = stmt.get(playerId) as PlayerSessionRecord | undefined;
+  return row || null;
+}
+
 export function recordHandHistory(
   handId: string,
   roomId: string,

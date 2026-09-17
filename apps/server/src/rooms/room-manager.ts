@@ -631,6 +631,16 @@ export class RoomManager {
     return this.roomsById.get(id) || null;
   }
 
+  public findRoomByPlayerId(playerId: string): Room | null {
+    if (!playerId) return null;
+    for (const room of this.rooms.values()) {
+      if (room.players.has(playerId)) {
+        return room;
+      }
+    }
+    return null;
+  }
+
   public removeRoom(code: string): void {
     const room = this.rooms.get(code.toUpperCase());
     if (room) {

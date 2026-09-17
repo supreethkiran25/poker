@@ -79,8 +79,19 @@ export function registerSocketHandlers(io: Server): void {
     // 1. Session Auth / Handshake
     socket.on('auth:handshake', (payload: unknown) => {
       try {
-        const data = payload as { sessionToken?: string; name?: string; avatar?: string; roomCode?: string };
-        sessionData.player = authenticateSession(data.sessionToken, data.name, data.avatar);
+        const data = payload as {
+          sessionToken?: string;
+          name?: string;
+          avatar?: string;
+          roomCode?: string;
+          playerId?: string;
+        };
+        sessionData.player = authenticateSession(
+          data.sessionToken,
+          data.name,
+          data.avatar,
+          data.playerId
+        );
         socket.emit('auth:success', {
           playerId: sessionData.player.playerId,
           sessionToken: sessionData.player.sessionToken,
@@ -88,10 +99,25 @@ export function registerSocketHandlers(io: Server): void {
           avatar: sessionData.player.avatar,
         });
 
-        // If a roomCode was provided on handshake (e.g. reconnect after network blip), re-attach player immediately
-        if (data.roomCode) {
-          const room = roomManager.getRoomByCode(data.roomCode.toUpperCase());
-          if (room && room.players.has(sessionData.player.playerId)) {
+        // If player refreshed or reconnected, re-attach them immediately to their active room
+        let room = data.roomCode ? roomManager.getRoomByCode(data.roomCode.toUpperCase()) : null;
+        if (!room) {
+          room = roomManager.findRoomByPlayerId(sessionData.player.playerId);
+        }
+        if (!room && data.playerId) {
+          room = roomManager.findRoomByPlayerId(data.playerId);
+        }
+
+        if (room) {
+          let seated = room.players.get(sessionData.player.playerId);
+          if (!seated && data.playerId) {
+            seated = room.players.get(data.playerId);
+            if (seated) {
+              sessionData.player.playerId = seated.id;
+            }
+          }
+
+          if (seated) {
             sessionData.currentRoomCode = room.code;
             socket.join(`room:${room.code}`);
             room.setPlayerConnection(sessionData.player.playerId, true, socket.id);
@@ -278,8 +304,14 @@ export function registerSocketHandlers(io: Server): void {
       sessionData.player = authenticateSession(
         parsed.data.sessionToken,
         parsed.data.playerName,
-        parsed.data.avatar
+        parsed.data.avatar,
+        parsed.data.playerId
       );
+
+      // If this player is already seated in the room (e.g. page refresh), preserve their seated playerId
+      if (parsed.data.playerId && room.players.has(parsed.data.playerId)) {
+        sessionData.player.playerId = parsed.data.playerId;
+      }
 
       try {
         room.addPlayer(
