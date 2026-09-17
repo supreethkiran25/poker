@@ -334,7 +334,7 @@ export const PlayerSeat: React.FC<PlayerSeatProps> = ({
           return (
             <div
               className={`flex items-center mt-0.5 transition-all duration-300 ${
-                isWinner ? '-space-x-1 sm:space-x-1 scale-100 z-30' : '-space-x-4 sm:-space-x-3'
+                isWinner ? '-space-x-1 sm:space-x-1 scale-100 z-30' : '-space-x-3.5 sm:-space-x-2.5'
               }`}
             >
               {cardsToDisplay.map((c, i) => {
@@ -344,11 +344,11 @@ export const PlayerSeat: React.FC<PlayerSeatProps> = ({
                   <CardView
                     key={i}
                     card={c}
-                    size={isUltraCompact ? 'xs' : 'sm'}
+                    size={isUltraCompact ? 'xs' : (allHidden ? 'xs' : 'sm')}
                     isHighlighted={isWinning}
                     isDimmed={isDim}
                     dealDelayMs={i * 100}
-                    tiltDeg={!isWinner ? (i === 0 ? -4 : 4) : 0}
+                    tiltDeg={!isWinner ? (i === 0 ? -5 : 5) : 0}
                   />
                 );
               })}

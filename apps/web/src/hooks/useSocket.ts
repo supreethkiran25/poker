@@ -40,23 +40,73 @@ export function useSocket() {
 
   // Track turn to play sound only on transition to my turn
   const prevIsTurnRef = useRef(false);
+  const roomStateRef = useRef<RoomPublicState | null>(null);
+
+  // ── Active Tab Keep-Alive for Render (Prevents Free-Tier Sleep while tab/link is open) ──
+  useEffect(() => {
+    const serverUrl = import.meta.env.VITE_SERVER_URL || window.location.origin;
+
+    const pingServer = () => {
+      // Send a lightweight GET request so Render registers active HTTP traffic
+      fetch(`${serverUrl}/health?keepalive=${Date.now()}`, {
+        method: 'GET',
+        cache: 'no-store',
+        mode: 'cors',
+      }).catch(() => {
+        // Silently ignore temporary ping network blips
+      });
+    };
+
+    // Ping immediately when this tab mounts
+    pingServer();
+
+    // Ping every 2.5 minutes (150s). Render free tier sleeps after 15 min of no HTTP traffic.
+    // As long as this browser tab is open, Render will NEVER sleep.
+    const intervalId = setInterval(pingServer, 150000);
+
+    // Also ping immediately whenever user switches back to this browser tab
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        pingServer();
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    // When the tab/link is closed, the interval is destroyed and pings stop.
+    // 15 minutes after all tabs are closed, Render can safely sleep.
+    return () => {
+      clearInterval(intervalId);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, []);
 
   useEffect(() => {
     const serverUrl = import.meta.env.VITE_SERVER_URL || window.location.origin;
     const socket = io(serverUrl, {
       transports: ['websocket', 'polling'],
-      reconnectionAttempts: 15,
+      reconnectionAttempts: Infinity,
       reconnectionDelay: 1000,
+      reconnectionDelayMax: 5000,
+      timeout: 20000,
     });
     socketRef.current = socket;
 
     socket.on('connect', () => {
       setIsConnected(true);
-      // Handshake with stored token
+      // Handshake with stored token + active room code if currently at a table
       const token = localStorage.getItem('poker_session_token');
       const name = localStorage.getItem('poker_player_name');
       const av = localStorage.getItem('poker_avatar');
-      socket.emit('auth:handshake', { sessionToken: token, name, avatar: av });
+      const currentRoom =
+        roomStateRef.current?.code ||
+        window.location.pathname.match(/^\/room\/([A-Za-z0-9]+)/)?.[1]?.toUpperCase();
+
+      socket.emit('auth:handshake', {
+        sessionToken: token,
+        name,
+        avatar: av,
+        roomCode: currentRoom,
+      });
     });
 
     socket.on('disconnect', () => {
@@ -72,16 +122,31 @@ export function useSocket() {
       localStorage.setItem('poker_session_token', data.sessionToken);
       localStorage.setItem('poker_player_name', data.name);
       localStorage.setItem('poker_avatar', data.avatar);
+
+      // If user is at a /room/:code URL but not yet recognized, re-join
+      const currentRoom =
+        roomStateRef.current?.code ||
+        window.location.pathname.match(/^\/room\/([A-Za-z0-9]+)/)?.[1]?.toUpperCase();
+      if (currentRoom && !roomStateRef.current) {
+        socket.emit('room:join', {
+          roomCode: currentRoom,
+          playerName: data.name,
+          avatar: data.avatar,
+          sessionToken: data.sessionToken,
+        });
+      }
     });
 
     socket.on('room:created', (data: { roomCode: string; roomState: RoomPublicState; gameState: GamePublicState }) => {
       setRoomState(data.roomState);
+      roomStateRef.current = data.roomState;
       setGameState(data.gameState);
       window.history.pushState({}, '', `/room/${data.roomCode}`);
     });
 
     socket.on('room:joined', (data: { roomCode: string; roomState: RoomPublicState; gameState: GamePublicState; sessionToken: string; playerId: string }) => {
       setRoomState(data.roomState);
+      roomStateRef.current = data.roomState;
       setGameState(data.gameState);
       setSessionToken(data.sessionToken);
       setPlayerId(data.playerId);
@@ -92,6 +157,7 @@ export function useSocket() {
 
     socket.on('room:state', (state: RoomPublicState) => {
       setRoomState(state);
+      roomStateRef.current = state;
     });
 
     socket.on('game:state', (state: GamePublicState) => {
@@ -235,6 +301,7 @@ export function useSocket() {
   const leaveRoom = useCallback(() => {
     if (!socketRef.current || !roomState) return;
     socketRef.current.emit('room:leave', { roomCode: roomState.code });
+    roomStateRef.current = null;
     setRoomState(null);
     setGameState(null);
     window.history.pushState({}, '', '/');

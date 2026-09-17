@@ -33,7 +33,7 @@ export const CommunityCards: React.FC<CommunityCardsProps> = ({
   if (isWaiting) return null;
 
   return (
-    <div className={`flex items-center ${ultraCompact ? 'gap-0.5' : compact ? 'gap-1' : 'gap-1.5 sm:gap-2'}`}>
+    <div className={`flex items-center p-1 sm:p-1.5 rounded-2xl bg-black/30 backdrop-blur-sm border border-amber-500/20 shadow-[inset_0_3px_12px_rgba(0,0,0,0.7),0_0_20px_rgba(0,0,0,0.4)] ${ultraCompact ? 'gap-1' : compact ? 'gap-1.5' : 'gap-2'}`}>
       {[0, 1, 2, 3, 4].map((idx) => {
         const card = cards[idx];
         if (card) {
@@ -57,32 +57,41 @@ export const CommunityCards: React.FC<CommunityCardsProps> = ({
           );
         }
 
-        // Luxury card placement slot on felt
+        // Luxury velvet-inlaid card placement slot on table felt
         const slotLabels = ['FLOP', 'FLOP', 'FLOP', 'TURN', 'RIVER'];
         const slotSuits = ['♠', '♥', '♦', '♣', '♠'];
+        const isRed = idx === 1 || idx === 2;
+
         return (
           <div
             key={idx}
             className={`${
               ultraCompact ? 'w-[32px] h-[46px] rounded-[4px]' : compact ? 'w-[46px] h-[66px] rounded-[5px]' : 'w-[64px] h-[92px] rounded-[6px]'
-            } border border-amber-500/30 flex flex-col items-center justify-center transition-all bg-[#04190e]/60 backdrop-blur-sm shadow-inner relative group`}
-            style={{
-              boxShadow: 'inset 0 2px 6px rgba(0,0,0,0.6), 0 1px 2px rgba(251,191,36,0.1)',
-            }}
+            } border border-dashed border-amber-400/25 flex flex-col items-center justify-between py-1.5 transition-all bg-gradient-to-b from-black/45 via-[#03150d]/50 to-black/65 shadow-[inset_0_3px_10px_rgba(0,0,0,0.85),0_1px_3px_rgba(251,191,36,0.06)] relative group select-none`}
           >
+            {/* Subtle top corner accent */}
+            <div className="w-full flex justify-between px-1 opacity-20">
+              <span className="text-[6px] font-mono text-amber-300">•</span>
+              <span className="text-[6px] font-mono text-amber-300">•</span>
+            </div>
+
+            {/* Centered metallic suit emblem */}
             <span
-              className="font-serif select-none"
+              className="font-serif select-none transition-transform group-hover:scale-110 drop-shadow-sm"
               style={{
-                color: idx === 1 || idx === 2 ? 'rgba(244,63,94,0.45)' : 'rgba(251,191,36,0.45)',
-                fontSize: ultraCompact ? '10px' : compact ? '14px' : '18px',
+                color: isRed ? 'rgba(244,63,94,0.4)' : 'rgba(251,191,36,0.35)',
+                fontSize: ultraCompact ? '12px' : compact ? '16px' : '22px',
+                filter: 'drop-shadow(0 1px 2px rgba(0,0,0,0.8))',
               }}
             >
               {slotSuits[idx]}
             </span>
+
+            {/* Street label */}
             {!ultraCompact && (
               <span
-                className="text-[8px] font-mono font-bold tracking-widest uppercase mt-0.5"
-                style={{ color: 'rgba(251, 191, 36, 0.4)' }}
+                className="text-[7.5px] sm:text-[8px] font-mono font-bold tracking-[0.2em] uppercase"
+                style={{ color: 'rgba(251, 191, 36, 0.45)' }}
               >
                 {slotLabels[idx]}
               </span>

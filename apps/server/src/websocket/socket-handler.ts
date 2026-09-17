@@ -79,7 +79,7 @@ export function registerSocketHandlers(io: Server): void {
     // 1. Session Auth / Handshake
     socket.on('auth:handshake', (payload: unknown) => {
       try {
-        const data = payload as { sessionToken?: string; name?: string; avatar?: string };
+        const data = payload as { sessionToken?: string; name?: string; avatar?: string; roomCode?: string };
         sessionData.player = authenticateSession(data.sessionToken, data.name, data.avatar);
         socket.emit('auth:success', {
           playerId: sessionData.player.playerId,
@@ -87,6 +87,36 @@ export function registerSocketHandlers(io: Server): void {
           name: sessionData.player.name,
           avatar: sessionData.player.avatar,
         });
+
+        // If a roomCode was provided on handshake (e.g. reconnect after network blip), re-attach player immediately
+        if (data.roomCode) {
+          const room = roomManager.getRoomByCode(data.roomCode.toUpperCase());
+          if (room && room.players.has(sessionData.player.playerId)) {
+            sessionData.currentRoomCode = room.code;
+            socket.join(`room:${room.code}`);
+            room.setPlayerConnection(sessionData.player.playerId, true, socket.id);
+
+            room.onStateChanged = () => {
+              broadcastGameState(room);
+              broadcastRoomState(room);
+            };
+
+            room.onChatMessage = (msg) => {
+              io.to(`room:${room.code}`).emit('chat:message', msg);
+            };
+
+            socket.emit('room:joined', {
+              roomCode: room.code,
+              roomState: room.getPublicState(),
+              gameState: room.getGamePublicState(sessionData.player.playerId),
+              sessionToken: sessionData.player.sessionToken,
+              playerId: sessionData.player.playerId,
+            });
+
+            broadcastRoomState(room);
+            broadcastGameState(room);
+          }
+        }
       } catch (err: any) {
         socket.emit('error:notification', { code: 'AUTH_ERROR', message: err.message });
       }

@@ -274,7 +274,13 @@ export class Room {
         }
       }
 
-      this.handlePlayerAction(activePlayerId, `bot-${Date.now()}`, decision.type, decision.amount);
+      const res = this.handlePlayerAction(activePlayerId, `bot-${Date.now()}`, decision.type, decision.amount);
+      if (!res.success) {
+        // Fallback: If bot calculation produced an illegal action, check or fold to prevent match stall
+        const pubState = this.engine.toPublicState(activePlayerId);
+        const canCheck = pubState.legalActions.some((a: { type: string }) => a.type === 'check');
+        this.handlePlayerAction(activePlayerId, `bot-fallback-${Date.now()}`, canCheck ? 'check' : 'fold');
+      }
       if (this.onStateChanged) {
         this.onStateChanged();
       }
@@ -407,7 +413,11 @@ export class Room {
     const canCheck = state.legalActions.some((a: { type: string }) => a.type === 'check');
 
     const actionType: ActionType = canCheck ? 'check' : 'fold';
-    this.handlePlayerAction(activePlayerId, `timeout-${Date.now()}`, actionType);
+    const res = this.handlePlayerAction(activePlayerId, `timeout-${Date.now()}`, actionType);
+    if (!res.success && actionType !== 'fold') {
+      // If check was rejected by engine, fallback to fold to prevent turn lock
+      this.handlePlayerAction(activePlayerId, `timeout-fallback-${Date.now()}`, 'fold');
+    }
 
     if (this.onStateChanged) {
       this.onStateChanged();

@@ -579,11 +579,15 @@ export const PokerTable: React.FC<PokerTableProps> = ({
               }}
             />
 
-            {/* PokerCircle Watermark in Center */}
-            <div className="absolute inset-0 flex items-center justify-center pointer-events-none select-none opacity-[0.04]">
-              <span className="font-serif text-amber-100 font-black tracking-[0.25em] text-2xl sm:text-4xl md:text-5xl whitespace-nowrap">
-                POKER CIRCLE
-              </span>
+            {/* Luxury Casino Watermark in Center */}
+            <div className="absolute inset-0 flex items-center justify-center pointer-events-none select-none opacity-[0.035]">
+              <div className="flex items-center gap-2 sm:gap-3 text-amber-200">
+                <span className="text-xs sm:text-base font-serif">♠</span>
+                <span className="font-serif font-black tracking-[0.28em] text-xl sm:text-3xl md:text-4xl whitespace-nowrap uppercase">
+                  ROYAL POKER CLUB
+                </span>
+                <span className="text-xs sm:text-base font-serif">♦</span>
+              </div>
             </div>
 
             {/* ── Opponents Positioned on Oval Perimeter ── */}
@@ -654,10 +658,10 @@ export const PokerTable: React.FC<PokerTableProps> = ({
 
             {/* ── Table Center: Community Cards + Showdown Results (or Pot during active play) ── */}
             <div
-              className="absolute z-20 flex flex-col items-center gap-1 sm:gap-2 pointer-events-auto"
+              className="absolute z-20 flex flex-col items-center gap-1.5 sm:gap-2 pointer-events-auto"
               style={{
                 left: '50%',
-                top: isPortrait ? (isTablet ? '38%' : (isCrowded ? '39%' : '42%')) : '38%',
+                top: isPortrait ? (isTablet ? '42%' : (isCrowded ? '42%' : '44%')) : '43%',
                 transform: 'translate(-50%, -50%)',
               }}
             >
@@ -685,39 +689,47 @@ export const PokerTable: React.FC<PokerTableProps> = ({
                 </div>
               ) : (
                 <>
-                  {/* Pot Badge during active play (Integrated with Phase on mobile to save vertical space) */}
-                  <div className="flex items-center gap-1.5 bg-black/85 backdrop-blur-md px-3.5 py-1 rounded-full border border-amber-500/40 shadow-xl pointer-events-auto">
-                    <span className="text-[10px] sm:text-xs uppercase tracking-widest text-amber-400 font-mono font-black">
-                      POT
-                    </span>
-                    <span className="text-[10px] text-amber-500/60 font-mono">|</span>
-                    <span className="text-xs sm:text-sm font-black text-amber-200 font-mono">
-                      {formatRupee(gameState.pot)}
-                    </span>
-                    {/* On mobile phone view, integrate phase directly into the pot badge */}
-                    {isPortrait && !isTablet && !isHandComplete && gameState.phase !== 'WAITING_FOR_PLAYERS' && gameState.phase !== 'STARTING' && (
-                      <>
-                        <span className="text-[10px] text-emerald-500/60 font-mono">•</span>
-                        <span className="text-[9px] font-mono uppercase tracking-wider text-emerald-400 font-bold">
-                          {gameState.phase.replace(/_/g, ' ')}
-                        </span>
-                      </>
+                  {/* Luxury Casino Pot Plaque */}
+                  <div className="flex flex-col items-center gap-1 pointer-events-auto">
+                    <div className="relative group flex items-center gap-2 bg-gradient-to-r from-zinc-950/95 via-amber-950/25 to-zinc-950/95 backdrop-blur-xl px-4 py-1 rounded-full border border-amber-400/50 shadow-[0_4px_24px_rgba(0,0,0,0.8),0_0_18px_rgba(245,158,11,0.18)] transition-all">
+                      {/* Golden chip icon */}
+                      <div className="w-4 h-4 rounded-full bg-gradient-to-tr from-amber-600 via-amber-500 to-yellow-400 flex items-center justify-center text-[9px] shadow-sm border border-amber-200/60 text-zinc-950 font-black">
+                        ₹
+                      </div>
+                      <span className="text-[10px] uppercase tracking-[0.2em] text-amber-400/90 font-mono font-bold">
+                        POT
+                      </span>
+                      <span className="text-amber-500/40 font-mono text-xs">•</span>
+                      <span className="text-sm sm:text-base font-black text-amber-300 font-mono tracking-tight drop-shadow-[0_1px_4px_rgba(245,158,11,0.35)]">
+                        {formatRupee(gameState.pot)}
+                      </span>
+
+                      {/* On mobile phone view, integrate phase directly into the pot badge */}
+                      {isPortrait && !isTablet && !isHandComplete && gameState.phase !== 'WAITING_FOR_PLAYERS' && gameState.phase !== 'STARTING' && (
+                        <>
+                          <span className="text-emerald-500/50 font-mono text-xs">•</span>
+                          <span className="text-[9px] font-mono uppercase tracking-wider text-emerald-400 font-bold bg-emerald-950/60 px-1.5 py-0.5 rounded border border-emerald-500/30">
+                            {gameState.phase.replace(/_/g, ' ')}
+                          </span>
+                        </>
+                      )}
+                    </div>
+
+                    {/* Side Pots with luxury chips badge */}
+                    {gameState.sidePots && gameState.sidePots.length > 1 && (
+                      <div className="flex items-center gap-1.5 flex-wrap justify-center pointer-events-auto animate-fade-in">
+                        {gameState.sidePots.map((sp, idx) => (
+                          <span
+                            key={idx}
+                            className="text-[9px] font-mono px-2.5 py-0.5 rounded-full bg-black/80 border border-amber-500/30 text-amber-300/90 shadow-sm flex items-center gap-1"
+                          >
+                            <span className="text-amber-500/60 text-[8px] font-black">{idx === 0 ? 'MAIN' : `SIDE ${idx}`}</span>
+                            <span className="font-bold text-amber-200">{formatRupee(sp.amount)}</span>
+                          </span>
+                        ))}
+                      </div>
                     )}
                   </div>
-
-                  {/* Side Pots if any */}
-                  {gameState.sidePots && gameState.sidePots.length > 1 && (
-                    <div className="flex items-center gap-1 flex-wrap justify-center pointer-events-auto">
-                      {gameState.sidePots.map((sp, idx) => (
-                        <span
-                          key={idx}
-                          className="text-[9px] font-mono px-2 py-0.5 rounded-full bg-black/70 border border-zinc-700 text-amber-300"
-                        >
-                          {idx === 0 ? 'MAIN' : `SIDE ${idx}`}: {formatRupee(sp.amount)}
-                        </span>
-                      ))}
-                    </div>
-                  )}
                 </>
               )}
 
@@ -732,8 +744,9 @@ export const PokerTable: React.FC<PokerTableProps> = ({
 
               {/* Phase Badge during active play (Desktop & Tablet only, on phone it's inside Pot badge) */}
               {(!isPortrait || isTablet) && !isMobileLandscape && !isHandComplete && gameState.phase !== 'WAITING_FOR_PLAYERS' && gameState.phase !== 'STARTING' && (
-                <div className="px-2.5 py-0.5 bg-black/70 rounded-full border border-emerald-500/40 text-[9px] sm:text-[10px] font-mono uppercase tracking-widest text-emerald-400 font-bold shadow">
-                  {gameState.phase.replace(/_/g, ' ')}
+                <div className="px-3 py-0.5 bg-gradient-to-r from-zinc-950/90 via-emerald-950/40 to-zinc-950/90 rounded-full border border-emerald-500/40 text-[9px] sm:text-[10px] font-mono uppercase tracking-[0.2em] text-emerald-400 font-bold shadow-[0_2px_10px_rgba(0,0,0,0.6),0_0_12px_rgba(16,185,129,0.15)] flex items-center gap-1.5">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                  <span>{gameState.phase.replace(/_/g, ' ')}</span>
                 </div>
               )}
             </div>
@@ -755,12 +768,12 @@ export const PokerTable: React.FC<PokerTableProps> = ({
             {/* ── Player's Hole Cards on the Felt (Positioned cleanly below community board) ── */}
             {me && me.holeCards && me.holeCards.length > 0 && (
               <div
-                className={`absolute z-20 flex items-center -space-x-1 sm:space-x-1 pointer-events-auto transition-all duration-300 ${
+                className={`absolute z-20 flex items-center -space-x-2 sm:-space-x-1 pointer-events-auto transition-all duration-300 ${
                   me.hasFolded ? 'opacity-40 grayscale-[60%] scale-90' : 'opacity-100'
-                }`}
+                } ${isMyTurn ? 'p-1 rounded-2xl ring-2 ring-amber-400/80 shadow-[0_0_24px_rgba(251,191,36,0.35)]' : ''}`}
                 style={{
                   left: '50%',
-                  top: isPortrait ? (isTablet ? '72%' : (isCrowded ? '73%' : '76%')) : (isMobileLandscape ? '73%' : '74%'),
+                  top: isPortrait ? (isTablet ? '72%' : (isCrowded ? '73%' : '76%')) : (isMobileLandscape ? '72%' : '70%'),
                   transform: 'translate(-50%, -50%)',
                 }}
               >
@@ -779,7 +792,7 @@ export const PokerTable: React.FC<PokerTableProps> = ({
                       isInteractive={!me.hasFolded}
                       isHighlighted={isWinning}
                       isDimmed={isDim}
-                      tiltDeg={idx === 0 ? -3 : 3}
+                      tiltDeg={idx === 0 ? -4 : 4}
                     />
                   );
                 })}

@@ -124,7 +124,7 @@ export const CardView: React.FC<CardViewProps> = ({
         alt={card ? `${rankStr}${suitStr}` : 'Card Back'}
         className="w-full h-full object-fill rounded-[inherit] select-none pointer-events-none drop-shadow-sm"
         style={{
-          imageRendering: 'pixelated',
+          imageRendering: 'auto',
         }}
         loading="eager"
         decoding="async"

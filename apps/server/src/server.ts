@@ -41,6 +41,15 @@ app.use(
 
 app.use(express.json());
 
+// Health & Keep-alive endpoint for Render (placed before rate limiting so tab pings are never blocked)
+app.get(['/health', '/api/keep-alive'], (_req, res) => {
+  res.json({
+    status: 'ok',
+    timestamp: Date.now(),
+    uptime: process.uptime(),
+  });
+});
+
 // Basic API rate limiting
 const apiLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
@@ -49,15 +58,6 @@ const apiLimiter = rateLimit({
   legacyHeaders: false,
 });
 app.use('/api/', apiLimiter);
-
-// Health check endpoint
-app.get('/health', (req, res) => {
-  res.json({
-    status: 'ok',
-    timestamp: Date.now(),
-    uptime: process.uptime(),
-  });
-});
 
 // Room verification endpoint (for landing page / invite links)
 app.get('/api/rooms/:code', (req, res) => {
@@ -94,7 +94,7 @@ const io = new Server(server, {
     credentials: true,
   },
   transports: ['websocket', 'polling'],
-  pingTimeout: 20000,
+  pingTimeout: 30000,
   pingInterval: 10000,
 });
 
