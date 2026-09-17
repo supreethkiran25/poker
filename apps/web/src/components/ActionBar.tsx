@@ -37,16 +37,25 @@ export const ActionBar: React.FC<ActionBarProps> = ({
     if (minRaise > 0) setRaiseAmount(minRaise);
   }, [minRaise]);
 
-  // When not player's turn: clean placeholder with consistent height
+  // When not player's turn: luxury status strip with live pot indicator
   if (!isMyTurn || legalActions.length === 0) {
     return (
       <div
-        className={`w-full bg-zinc-950/80 backdrop-blur-md border border-zinc-800/80 text-zinc-500 font-mono shadow-xl text-center flex items-center justify-center gap-2 ${
-          compact ? 'px-3 py-1.5 rounded-xl text-[11px]' : 'px-4 py-3 rounded-2xl text-xs'
+        className={`w-full bg-zinc-950/90 backdrop-blur-md border border-zinc-800/90 text-zinc-400 font-mono shadow-xl flex items-center justify-between px-4 py-2 rounded-2xl ${
+          compact ? 'text-[10px]' : 'text-xs'
         }`}
       >
-        <span className="w-2 h-2 rounded-full bg-amber-400/60 animate-pulse" />
-        <span>Waiting for other players…</span>
+        <div className="flex items-center gap-2">
+          <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
+          <span className="text-zinc-200 font-sans font-bold">Hand in Progress</span>
+        </div>
+        <div className="flex items-center gap-1.5 text-zinc-400 text-[11px]">
+          <Clock className="w-3.5 h-3.5 text-amber-400 animate-spin" style={{ animationDuration: '4s' }} />
+          <span>Waiting for opponents to act…</span>
+        </div>
+        <div className="text-amber-400 font-mono font-bold">
+          POT: {formatRupee(pot)}
+        </div>
       </div>
     );
   }

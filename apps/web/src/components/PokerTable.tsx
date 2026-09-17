@@ -4,6 +4,8 @@ import type {
   RoomPublicState,
   ActionType,
   RoomConfig,
+  BotPersonality,
+  BotDifficulty,
 } from '@poker/shared';
 import { formatRupee, VIRTUAL_CURRENCY_DISCLAIMER } from '@poker/shared';
 import { PlayerSeat } from './PlayerSeat.js';
@@ -19,6 +21,7 @@ import { RebuyModal } from './RebuyModal.js';
 import { GameSummaryModal } from './GameSummaryModal.js';
 import { MobileTableMenu } from './MobileTableMenu.js';
 import { ChipStack } from './ChipStack.js';
+import { AddBotModal } from './AddBotModal.js';
 import type { TableAlert } from '../hooks/useSocket.js';
 import {
   Mic,
@@ -37,6 +40,7 @@ import {
   Copy,
   Share2,
   Menu,
+  Bot,
 } from 'lucide-react';
 
 interface PokerTableProps {
@@ -56,6 +60,10 @@ interface PokerTableProps {
   onDealNextHand?: () => void;
   onUpdateConfig?: (config: Partial<RoomConfig>) => void;
   unreadChatCount?: number;
+  onAddBot?: (personality?: BotPersonality, name?: string, difficulty?: BotDifficulty) => void;
+  onRemoveBot?: (botPlayerId: string) => void;
+  onFillBots?: (targetCount?: number, difficulty?: BotDifficulty | 'mixed') => void;
+  onClearBots?: () => void;
 }
 
 export const PokerTable: React.FC<PokerTableProps> = ({
@@ -75,6 +83,10 @@ export const PokerTable: React.FC<PokerTableProps> = ({
   onDealNextHand,
   onUpdateConfig,
   unreadChatCount = 0,
+  onAddBot,
+  onRemoveBot,
+  onFillBots,
+  onClearBots,
 }) => {
   const [showSummary, setShowSummary] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
@@ -83,6 +95,7 @@ export const PokerTable: React.FC<PokerTableProps> = ({
   const [showRebuy, setShowRebuy] = useState(false);
   const [showShowdown, setShowShowdown] = useState(false);
   const [showMobileMenu, setShowMobileMenu] = useState(false);
+  const [showAddBotModal, setShowAddBotModal] = useState(false);
   const [secondsRemaining, setSecondsRemaining] = useState<number | null>(null);
   const [layoutMode, setLayoutMode] = useState<'mobile' | 'tablet' | 'mobile-landscape' | 'desktop'>(() => {
     const w = typeof window !== 'undefined' ? window.innerWidth : 1200;
@@ -384,6 +397,16 @@ export const PokerTable: React.FC<PokerTableProps> = ({
             <span className="hidden sm:inline">REBUY</span>
           </button>
 
+          {/* Add Bots Button */}
+          <button
+            onClick={() => setShowAddBotModal(true)}
+            className="p-2 bg-purple-950/60 hover:bg-purple-900/80 text-purple-300 hover:text-purple-200 rounded-xl border border-purple-500/40 transition flex items-center gap-1.5 text-xs font-mono font-bold"
+            title="Add AI Bots"
+          >
+            <Bot className="w-4 h-4 text-purple-400" />
+            <span className="hidden md:inline">BOTS</span>
+          </button>
+
           {/* Voice Chat (Mic) Button */}
           {onToggleMute && (
             <button
@@ -525,9 +548,9 @@ export const PokerTable: React.FC<PokerTableProps> = ({
                 }
               : {
                   width: '100%',
-                  aspectRatio: '1.74 / 1',
-                  maxWidth: 'min(96vw, calc((100dvh - 180px) * 1.74))',
-                  maxHeight: 'calc(100dvh - 180px)',
+                  aspectRatio: '1.82 / 1',
+                  maxWidth: 'min(98vw, calc((100dvh - 130px) * 1.82))',
+                  maxHeight: 'calc(100dvh - 130px)',
                   borderRadius: '9999px',
                 }
           }
@@ -575,10 +598,48 @@ export const PokerTable: React.FC<PokerTableProps> = ({
                     winningCards={winningCards}
                     showdownHoleCards={showdownCardsMap[player.id]}
                     isHandComplete={isHandComplete}
+                    onKickBot={(botId) => onRemoveBot && onRemoveBot(botId)}
+                    isHost={isHost}
                   />
                 </div>
               );
             })}
+
+            {/* ── Bored / Alone Callout when only 1 player at table ── */}
+            {opponents.length === 0 && (
+              <div
+                className="absolute z-25 p-4 sm:p-5 rounded-3xl bg-zinc-950/95 border border-purple-500/50 shadow-[0_0_30px_rgba(168,85,247,0.25)] backdrop-blur-md flex flex-col items-center text-center max-w-xs sm:max-w-sm pointer-events-auto animate-scale-up"
+                style={{
+                  left: '50%',
+                  top: isPortrait ? (isTablet ? '42%' : '44%') : '42%',
+                  transform: 'translate(-50%, -50%)',
+                }}
+              >
+                <div className="w-10 h-10 rounded-2xl bg-purple-500/20 border border-purple-500/40 flex items-center justify-center text-xl mb-1.5 shadow-inner">
+                  🤖
+                </div>
+                <div className="text-white font-black text-sm sm:text-base leading-tight">
+                  Playing alone or bored?
+                </div>
+                <p className="text-[11px] text-zinc-400 mt-1 mb-3.5 leading-relaxed">
+                  Add smart AI bots with distinct personalities and keep Texas Hold'em rolling!
+                </p>
+                <div className="flex items-center gap-2 w-full">
+                  <button
+                    onClick={() => onAddBot && onAddBot()}
+                    className="flex-1 py-2 bg-gradient-to-r from-amber-500 to-yellow-500 hover:from-amber-400 active:scale-95 text-zinc-950 font-black text-xs rounded-xl shadow transition"
+                  >
+                    + Add 1 Bot
+                  </button>
+                  <button
+                    onClick={() => setShowAddBotModal(true)}
+                    className="flex-1 py-2 bg-purple-900/60 hover:bg-purple-800 text-purple-200 font-bold text-xs rounded-xl border border-purple-500/40 active:scale-95 transition"
+                  >
+                    Choose Bots
+                  </button>
+                </div>
+              </div>
+            )}
 
             {/* ── Table Center: Community Cards + Showdown Results (or Pot during active play) ── */}
             <div
@@ -589,27 +650,27 @@ export const PokerTable: React.FC<PokerTableProps> = ({
                 transform: 'translate(-50%, -50%)',
               }}
             >
-              {/* When Hand Complete: Unified Showdown Showcase (Winner Card + Glowing Hand Rank Pill) */}
+              {/* When Hand Complete: Sleek Unified Showdown Pill (Winner + Pot + Hand Rank) */}
               {isHandComplete ? (
-                <div className="flex flex-col items-center gap-1.5 animate-fade-in z-30 mb-0.5">
-                  {/* Clean Winner Box */}
-                  <div className="relative bg-white/95 text-slate-800 px-5 sm:px-7 py-1.5 sm:py-2 rounded-xl sm:rounded-2xl shadow-[0_10px_28px_rgba(0,0,0,0.55)] border border-slate-200/90 flex flex-col items-center justify-center text-center backdrop-blur-sm select-none">
-                    <div className="text-xs sm:text-sm font-semibold text-slate-500 leading-tight">
+                <div className="flex items-center gap-1.5 animate-fade-in z-30 mb-1">
+                  <div className="bg-black/90 text-white px-4 sm:px-6 py-1.5 rounded-full shadow-2xl border border-amber-400/70 flex items-center gap-2 backdrop-blur-md select-none">
+                    <span className="text-xs sm:text-sm font-bold text-zinc-300">
                       {isSplitPot
-                        ? `${winners.map((w) => w.playerName).join(' & ')} split the`
-                        : `${winnerPlayer?.name || 'Player'} wins the`}
-                    </div>
-                    <div className="text-sm sm:text-base font-black text-slate-900 font-mono leading-tight mt-0.5">
+                        ? `${winners.map((w) => w.playerName).join(' & ')} split`
+                        : `${winnerPlayer?.name || 'Player'} wins`}
+                    </span>
+                    <span className="text-xs sm:text-sm font-black text-amber-300 font-mono">
                       {formatRupee(totalWonPot)} pot
-                    </div>
+                    </span>
+                    {winningRankBadgeText && (
+                      <>
+                        <span className="text-zinc-600">|</span>
+                        <span className="text-xs sm:text-sm font-black text-amber-400 uppercase tracking-wide">
+                          {winningRankBadgeText}
+                        </span>
+                      </>
+                    )}
                   </div>
-
-                  {/* Glowing Winning Hand Rank Pill (e.g. "Two Pair", "Full House") */}
-                  {winningRankBadgeText && (
-                    <div className="px-5 py-0.5 sm:px-7 sm:py-1 rounded-full bg-white text-slate-900 font-black text-xs sm:text-sm tracking-wide shadow-[0_0_18px_rgba(250,204,21,0.95),0_0_32px_rgba(190,242,100,0.6)] border-2 border-yellow-400 select-none">
-                      {winningRankBadgeText}
-                    </div>
-                  )}
                 </div>
               ) : (
                 <>
@@ -679,7 +740,7 @@ export const PokerTable: React.FC<PokerTableProps> = ({
               </div>
             )}
 
-            {/* ── Player's Hole Cards on the Felt (Remains visible even after folding) ── */}
+            {/* ── Player's Hole Cards on the Felt (Positioned cleanly below community board) ── */}
             {me && me.holeCards && me.holeCards.length > 0 && (
               <div
                 className={`absolute z-20 flex items-center -space-x-1 sm:space-x-1 pointer-events-auto transition-all duration-300 ${
@@ -687,7 +748,7 @@ export const PokerTable: React.FC<PokerTableProps> = ({
                 }`}
                 style={{
                   left: '50%',
-                  top: isPortrait ? (isTablet ? '67%' : '73%') : (isMobileLandscape ? '69%' : '67%'),
+                  top: isPortrait ? (isTablet ? '72%' : '76%') : (isMobileLandscape ? '73%' : '74%'),
                   transform: 'translate(-50%, -50%)',
                 }}
               >
@@ -701,12 +762,12 @@ export const PokerTable: React.FC<PokerTableProps> = ({
                     <CardView
                       key={idx}
                       card={c}
-                      size={isTablet || (!isPortrait && !isMobileLandscape) ? 'md' : 'sm'}
+                      size={isTablet || (!isPortrait && !isMobileLandscape) ? 'lg' : 'md'}
                       dealDelayMs={idx * 140}
                       isInteractive={!me.hasFolded}
                       isHighlighted={isWinning}
                       isDimmed={isDim}
-                      tiltDeg={idx === 0 ? -4 : 4}
+                      tiltDeg={idx === 0 ? -3 : 3}
                     />
                   );
                 })}
@@ -931,7 +992,22 @@ export const PokerTable: React.FC<PokerTableProps> = ({
         onOpenRules={() => setShowRules(true)}
         onOpenSettings={() => setShowSettings(true)}
         onLeaveRoom={onLeaveRoom}
+        onOpenAddBot={() => setShowAddBotModal(true)}
       />
+
+      {/* ══ ADD BOT MODAL ══ */}
+      {showAddBotModal && (
+        <AddBotModal
+          isOpen={showAddBotModal}
+          onClose={() => setShowAddBotModal(false)}
+          roomState={roomState}
+          isHandInProgress={gameState.phase !== 'HAND_COMPLETE' && gameState.phase !== 'WAITING_FOR_PLAYERS'}
+          onAddBot={(personality, name, difficulty) => onAddBot && onAddBot(personality, name, difficulty)}
+          onFillBots={(count, difficulty) => onFillBots && onFillBots(count, difficulty)}
+          onClearBots={() => onClearBots && onClearBots()}
+          onRemoveBot={(botPlayerId) => onRemoveBot && onRemoveBot(botPlayerId)}
+        />
+      )}
     </div>
   );
 };

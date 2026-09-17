@@ -7,6 +7,8 @@ import type {
   ReactionItem,
   ActionType,
   RoomConfig,
+  BotPersonality,
+  BotDifficulty,
 } from '@poker/shared';
 import { soundManager } from '../audio/sound-manager.js';
 
@@ -187,6 +189,28 @@ export function useSocket() {
     [avatar]
   );
 
+  const quickPlayBots = useCallback(
+    (customName?: string, botCount: number = 4, difficulty: BotDifficulty | 'mixed' = 'mixed') => {
+      if (!socketRef.current) return;
+      const storedName = localStorage.getItem('poker_player_name');
+      const finalName = customName || storedName || playerName || 'Player';
+      const av = localStorage.getItem('poker_avatar') || avatar;
+
+      setPlayerName(finalName);
+      setAvatar(av);
+      localStorage.setItem('poker_player_name', finalName);
+      localStorage.setItem('poker_avatar', av);
+
+      socketRef.current.emit('room:quick-play-bots', {
+        playerName: finalName,
+        avatar: av,
+        botCount,
+        difficulty,
+      });
+    },
+    [avatar, playerName]
+  );
+
   const joinRoom = useCallback(
     (roomCode: string, name: string, selectedAvatar?: string, buyIn?: number) => {
       if (!socketRef.current) return;
@@ -263,6 +287,49 @@ export function useSocket() {
     socketRef.current.emit('game:rematch', { roomCode: roomState.code });
   }, [roomState]);
 
+  const addBot = useCallback(
+    (personality?: BotPersonality, name?: string, difficulty?: BotDifficulty) => {
+      if (!socketRef.current || !roomState) return;
+      socketRef.current.emit('room:bot-add', {
+        roomCode: roomState.code,
+        personality,
+        name,
+        difficulty,
+      });
+    },
+    [roomState]
+  );
+
+  const removeBot = useCallback(
+    (botPlayerId: string) => {
+      if (!socketRef.current || !roomState) return;
+      socketRef.current.emit('room:bot-remove', {
+        roomCode: roomState.code,
+        botPlayerId,
+      });
+    },
+    [roomState]
+  );
+
+  const fillBots = useCallback(
+    (targetCount?: number, difficulty?: BotDifficulty | 'mixed') => {
+      if (!socketRef.current || !roomState) return;
+      socketRef.current.emit('room:bot-fill', {
+        roomCode: roomState.code,
+        targetCount,
+        difficulty,
+      });
+    },
+    [roomState]
+  );
+
+  const clearBots = useCallback(() => {
+    if (!socketRef.current || !roomState) return;
+    socketRef.current.emit('room:bot-clear', {
+      roomCode: roomState.code,
+    });
+  }, [roomState]);
+
   return {
     isConnected,
     playerId,
@@ -275,6 +342,7 @@ export function useSocket() {
     floatingReactions,
     errorNotification,
     createRoom,
+    quickPlayBots,
     joinRoom,
     leaveRoom,
     toggleReady,
@@ -288,6 +356,10 @@ export function useSocket() {
     dealNextHand,
     updateRoomConfig,
     tableAlerts,
+    addBot,
+    removeBot,
+    fillBots,
+    clearBots,
     socket: socketRef.current,
   };
 }

@@ -1,4 +1,3 @@
-import React from 'react';
 import {
   X,
   Share2,
@@ -8,6 +7,7 @@ import {
   BookOpen,
   Settings,
   LogOut,
+  Bot,
 } from 'lucide-react';
 import { formatRupee } from '@poker/shared';
 
@@ -25,6 +25,7 @@ interface MobileTableMenuProps {
   onOpenRules: () => void;
   onOpenSettings: () => void;
   onLeaveRoom: () => void;
+  onOpenAddBot?: () => void;
 }
 
 export const MobileTableMenu: React.FC<MobileTableMenuProps> = ({
@@ -41,6 +42,7 @@ export const MobileTableMenu: React.FC<MobileTableMenuProps> = ({
   onOpenRules,
   onOpenSettings,
   onLeaveRoom,
+  onOpenAddBot,
 }) => {
   if (!isOpen) return null;
 
@@ -171,6 +173,28 @@ export const MobileTableMenu: React.FC<MobileTableMenuProps> = ({
               <div className="text-[10px] text-zinc-400">Audio & timer</div>
             </div>
           </button>
+
+          {/* Add Bots */}
+          {onOpenAddBot && (
+            <button
+              onClick={() => {
+                onClose();
+                onOpenAddBot();
+              }}
+              className="p-3 bg-zinc-900/90 hover:bg-zinc-800/90 active:scale-98 rounded-2xl border border-purple-500/40 flex items-center gap-3 transition text-left"
+            >
+              <div className="w-10 h-10 rounded-xl bg-purple-500/20 border border-purple-500/40 flex items-center justify-center text-purple-400 shrink-0">
+                <Bot className="w-5 h-5" />
+              </div>
+              <div>
+                <div className="text-xs font-bold text-white flex items-center gap-1.5">
+                  <span>Add Bots</span>
+                  <span className="text-[9px] font-mono bg-purple-500/20 text-purple-300 px-1 rounded">AI</span>
+                </div>
+                <div className="text-[10px] text-zinc-400">Play instantly</div>
+              </div>
+            </button>
+          )}
         </div>
 
         {/* Leave Table Button */}

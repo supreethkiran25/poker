@@ -72,9 +72,35 @@ export const RematchSchema = z.object({
   roomCode: z.string().trim().toUpperCase(),
 });
 
+export const AddBotSchema = z.object({
+  roomCode: z.string().trim().toUpperCase(),
+  personality: z.enum(['shark', 'aggressive', 'passive', 'balanced']).optional(),
+  difficulty: z.enum(['easy', 'medium', 'hard']).optional(),
+  name: z.string().optional(),
+});
+
+export const RemoveBotSchema = z.object({
+  roomCode: z.string().trim().toUpperCase(),
+  botPlayerId: z.string().min(1),
+});
+
+export const FillBotsSchema = z.object({
+  roomCode: z.string().trim().toUpperCase(),
+  targetCount: z.number().int().min(2).max(10).optional(),
+  difficulty: z.enum(['easy', 'medium', 'hard', 'mixed']).optional(),
+});
+
+export const ClearBotsSchema = z.object({
+  roomCode: z.string().trim().toUpperCase(),
+});
+
 export type CreateRoomInput = z.infer<typeof CreateRoomSchema>;
 export type JoinRoomInput = z.infer<typeof JoinRoomSchema>;
 export type GameActionInput = z.infer<typeof GameActionSchema>;
 export type ChatMessageInput = z.infer<typeof ChatMessageSchema>;
 export type ReactionInput = z.infer<typeof ReactionSchema>;
 export type UpdateConfigInput = z.infer<typeof UpdateConfigSchema>;
+export type AddBotInput = z.infer<typeof AddBotSchema>;
+export type RemoveBotInput = z.infer<typeof RemoveBotSchema>;
+export type FillBotsInput = z.infer<typeof FillBotsSchema>;
+export type ClearBotsInput = z.infer<typeof ClearBotsSchema>;

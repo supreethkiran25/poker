@@ -55,19 +55,34 @@ export const CommunityCards: React.FC<CommunityCardsProps> = ({
           );
         }
 
-        // Empty card placeholder slot on felt
+        // Luxury card placement slot on felt
+        const slotLabels = ['FLOP', 'FLOP', 'FLOP', 'TURN', 'RIVER'];
+        const slotSuits = ['♠', '♥', '♦', '♣', '♠'];
         return (
           <div
             key={idx}
             className={`${
-              compact ? 'w-9 h-[54px] rounded-lg' : 'w-14 h-[84px] rounded-xl'
-            } border border-dashed flex items-center justify-center transition-opacity opacity-40`}
+              compact ? 'w-[46px] h-[66px] rounded-[5px]' : 'w-[64px] h-[92px] rounded-[6px]'
+            } border border-amber-500/30 flex flex-col items-center justify-center transition-all bg-[#04190e]/60 backdrop-blur-sm shadow-inner relative group`}
             style={{
-              borderColor: 'rgba(212, 175, 55, 0.3)',
-              background: 'radial-gradient(circle, rgba(0,0,0,0.2) 0%, rgba(0,0,0,0.05) 100%)',
+              boxShadow: 'inset 0 2px 6px rgba(0,0,0,0.6), 0 1px 2px rgba(251,191,36,0.1)',
             }}
           >
-            <span style={{ color: 'rgba(212, 175, 55, 0.4)', fontSize: compact ? '10px' : '14px' }}>♠</span>
+            <span
+              className="font-serif select-none"
+              style={{
+                color: idx === 1 || idx === 2 ? 'rgba(244,63,94,0.45)' : 'rgba(251,191,36,0.45)',
+                fontSize: compact ? '14px' : '18px',
+              }}
+            >
+              {slotSuits[idx]}
+            </span>
+            <span
+              className="text-[8px] font-mono font-bold tracking-widest uppercase mt-0.5"
+              style={{ color: 'rgba(251, 191, 36, 0.4)' }}
+            >
+              {slotLabels[idx]}
+            </span>
           </div>
         );
       })}

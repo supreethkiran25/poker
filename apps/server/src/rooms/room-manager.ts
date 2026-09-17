@@ -6,9 +6,12 @@ import {
   type ActionType,
   type ChatMessage,
   type ReactionItem,
+  type BotPersonality,
+  type BotDifficulty,
+  BOT_PROFILES,
   DEFAULT_ROOM_CONFIG,
 } from '@poker/shared';
-import { PokerEngine } from '@poker/poker-engine';
+import { PokerEngine, decideBotAction } from '@poker/poker-engine';
 import { recordHandHistory } from '../db/database.js';
 
 export function generateRoomCode(): string {
@@ -26,6 +29,9 @@ export interface RoomPlayer {
   isConnected: boolean;
   chips: number;
   socketId?: string;
+  isBot?: boolean;
+  personality?: BotPersonality;
+  difficulty?: BotDifficulty;
 }
 
 export class Room {
@@ -42,7 +48,9 @@ export class Room {
   public turnExpiresAt: number | null = null;
   public nextHandTimerHandle: NodeJS.Timeout | null = null;
   public nextHandReadyPlayers: Set<string> = new Set();
+  public botTimerHandle: NodeJS.Timeout | null = null;
   public onStateChanged?: () => void;
+  public onChatMessage?: (msg: ChatMessage) => void;
 
   constructor(
     hostId: string,
@@ -68,7 +76,10 @@ export class Room {
     avatar: string,
     seatIndex?: number,
     buyIn?: number,
-    isHost: boolean = false
+    isHost: boolean = false,
+    isBot: boolean = false,
+    personality?: BotPersonality,
+    difficulty?: BotDifficulty
   ): RoomPlayer {
     const existing = this.players.get(id);
     if (existing) {
@@ -84,7 +95,16 @@ export class Room {
     }
 
     // Engine handles seat assignment
-    const internal = this.engine.addPlayer(id, name, avatar, seatIndex, buyIn);
+    const internal = this.engine.addPlayer(
+      id,
+      name,
+      avatar,
+      seatIndex,
+      buyIn,
+      isBot,
+      personality,
+      difficulty
+    );
 
     const player: RoomPlayer = {
       id,
@@ -92,18 +112,182 @@ export class Room {
       avatar,
       seatIndex: internal.seatIndex,
       isHost,
-      isReady: isHost,
+      isReady: isHost || isBot,
       isConnected: true,
       chips: internal.chips,
+      isBot,
+      personality,
+      difficulty,
     };
 
     this.players.set(id, player);
     return player;
   }
 
+  public addBot(
+    personality?: BotPersonality,
+    customName?: string,
+    difficulty?: BotDifficulty
+  ): RoomPlayer {
+    if (this.players.size >= this.config.maxPlayers) {
+      throw new Error('Room is full');
+    }
+
+    // Filter by difficulty if provided
+    const matchingProfiles = difficulty
+      ? BOT_PROFILES.filter((p) => p.difficulty === difficulty)
+      : BOT_PROFILES;
+
+    const existingNames = new Set(Array.from(this.players.values()).map((p) => p.name));
+    const availableMatching = matchingProfiles.filter((p) => !existingNames.has(p.name));
+    const availableAny = BOT_PROFILES.filter((p) => !existingNames.has(p.name));
+    const pool =
+      availableMatching.length > 0
+        ? availableMatching
+        : availableAny.length > 0
+        ? availableAny
+        : matchingProfiles;
+
+    const profile = pool[Math.floor(Math.random() * pool.length)];
+
+    const finalPersonality = personality || profile.personality;
+    const finalDifficulty = difficulty || profile.difficulty || 'medium';
+    const finalName = customName || profile.name;
+    const botId = `bot-${crypto.randomUUID().slice(0, 8)}`;
+
+    const botPlayer = this.addPlayer(
+      botId,
+      finalName,
+      profile.avatar,
+      undefined,
+      this.config.startingChips,
+      false,
+      true,
+      finalPersonality,
+      finalDifficulty
+    );
+
+    return botPlayer;
+  }
+
+  public removeBot(botPlayerId: string): void {
+    const p = this.players.get(botPlayerId);
+    if (!p || !p.isBot) return;
+
+    // Enforce needed-bot protection: minimum 2 players required for game
+    if (this.players.size <= 2) {
+      throw new Error('Cannot remove bot: at least 2 players are needed for the match.');
+    }
+
+    // Protect active hands: cannot kick mid-hand
+    if (this.engine.isHandInProgress()) {
+      throw new Error('Cannot remove bot while a hand is actively in progress.');
+    }
+
+    this.removePlayer(botPlayerId);
+  }
+
+  public fillBots(targetCount?: number, difficulty?: BotDifficulty | 'mixed'): RoomPlayer[] {
+    const target = Math.min(
+      this.config.maxPlayers,
+      targetCount || Math.min(6, this.config.maxPlayers)
+    );
+    const added: RoomPlayer[] = [];
+    const diffList: BotDifficulty[] = ['easy', 'medium', 'hard'];
+    while (this.players.size < target) {
+      try {
+        const botDiff =
+          difficulty === 'mixed'
+            ? diffList[added.length % diffList.length]
+            : difficulty;
+        const bot = this.addBot(undefined, undefined, botDiff);
+        added.push(bot);
+      } catch {
+        break;
+      }
+    }
+    return added;
+  }
+
+  public clearBots(): void {
+    const bots = Array.from(this.players.values()).filter((p) => p.isBot);
+    for (const bot of bots) {
+      this.removePlayer(bot.id);
+    }
+  }
+
+  public clearBotTimer(): void {
+    if (this.botTimerHandle) {
+      clearTimeout(this.botTimerHandle);
+      this.botTimerHandle = null;
+    }
+  }
+
+  public scheduleBotTurnIfNeeded(): void {
+    this.clearBotTimer();
+    if (!this.engine.isHandInProgress()) return;
+
+    const activePlayerId = this.engine.getActivePlayerId();
+    if (!activePlayerId) return;
+
+    const player = this.players.get(activePlayerId);
+    if (!player || !player.isBot) return;
+
+    const publicState = this.engine.toPublicState(activePlayerId);
+    const internalPlayer = this.engine.getPlayer(activePlayerId);
+    if (!internalPlayer || !internalPlayer.holeCards || internalPlayer.holeCards.length < 2) return;
+
+    const decision = decideBotAction({
+      holeCards: internalPlayer.holeCards,
+      communityCards: [...this.engine.getCommunityCards()],
+      pot: publicState.pot,
+      currentTableBet: publicState.currentBet,
+      myCurrentBet: internalPlayer.currentBet,
+      myChips: internalPlayer.chips,
+      bigBlind: this.config.bigBlind,
+      minRaise: publicState.minRaise,
+      legalActions: publicState.legalActions,
+      personality: player.personality || 'balanced',
+      difficulty: player.difficulty,
+      isPreflop: this.engine.getPhase() === 'PREFLOP',
+    });
+
+    const thinkDelay = decision.thinkDelayMs || 1200;
+
+    this.botTimerHandle = setTimeout(() => {
+      this.botTimerHandle = null;
+      if (this.engine.getActivePlayerId() !== activePlayerId) return;
+
+      // Bot shoutout message if present
+      if (decision.shoutout && this.config.chatEnabled) {
+        const msg: ChatMessage = {
+          id: crypto.randomUUID(),
+          playerId: activePlayerId,
+          playerName: player.name,
+          message: decision.shoutout,
+          timestamp: Date.now(),
+        };
+        this.chatMessages.push(msg);
+        if (this.chatMessages.length > 100) this.chatMessages.shift();
+        if (this.onChatMessage) {
+          this.onChatMessage(msg);
+        }
+      }
+
+      this.handlePlayerAction(activePlayerId, `bot-${Date.now()}`, decision.type, decision.amount);
+      if (this.onStateChanged) {
+        this.onStateChanged();
+      }
+    }, thinkDelay);
+  }
+
   public removePlayer(id: string): void {
     const p = this.players.get(id);
     if (!p) return;
+
+    if (this.botTimerHandle && this.engine.getActivePlayerId() === id) {
+      this.clearBotTimer();
+    }
 
     this.engine.removePlayer(id);
     this.players.delete(id);
@@ -154,6 +338,7 @@ export class Room {
 
     this.engine.startHand();
     this.startTurnTimer();
+    this.scheduleBotTurnIfNeeded();
   }
 
   public handlePlayerAction(
@@ -181,9 +366,11 @@ export class Room {
 
     // Reset or restart timer
     this.clearTurnTimer();
+    this.clearBotTimer();
 
     if (this.engine.isHandInProgress()) {
       this.startTurnTimer();
+      this.scheduleBotTurnIfNeeded();
     } else if (this.engine.getPhase() === 'HAND_COMPLETE') {
       this.onHandFinished();
     }
@@ -203,7 +390,7 @@ export class Room {
     }, durationMs);
   }
 
-  private clearTurnTimer(): void {
+  public clearTurnTimer(): void {
     if (this.timerHandle) {
       clearTimeout(this.timerHandle);
       this.timerHandle = null;
@@ -227,7 +414,7 @@ export class Room {
     }
   }
 
-  private clearNextHandTimer(): void {
+  public clearNextHandTimer(): void {
     if (this.nextHandTimerHandle) {
       clearTimeout(this.nextHandTimerHandle);
       this.nextHandTimerHandle = null;
@@ -236,6 +423,7 @@ export class Room {
 
   private onHandFinished(): void {
     this.clearTurnTimer();
+    this.clearBotTimer();
     this.clearNextHandTimer();
     const state = this.engine.toPublicState('system');
     if (state.lastHandResult) {
@@ -252,6 +440,33 @@ export class Room {
     }
 
     this.nextHandReadyPlayers.clear();
+
+    // Check if any bot is bust (0 chips) and auto-rebuy
+    for (const p of this.players.values()) {
+      if (p.isBot) {
+        const internal = this.engine.getPlayer(p.id);
+        if (internal && internal.chips <= 0) {
+          this.rebuyPlayer(p.id, this.config.startingChips);
+        }
+      }
+    }
+
+    // Schedule bots to auto-ready after 2 seconds
+    setTimeout(() => {
+      if (this.engine.getPhase() === 'HAND_COMPLETE') {
+        let anyReady = false;
+        for (const p of this.players.values()) {
+          if (p.isBot) {
+            const started = this.setPlayerNextHandReady(p.id, true);
+            anyReady = true;
+            if (started) break;
+          }
+        }
+        if (anyReady && this.onStateChanged) {
+          this.onStateChanged();
+        }
+      }
+    }, 2000);
 
     // Check if at least 2 players have chips to continue
     const activeWithChips = this.engine.getPlayers().filter((p) => p !== null && p.chips > 0);
@@ -333,6 +548,7 @@ export class Room {
     this.nextHandReadyPlayers.clear();
     this.engine.startHand();
     this.startTurnTimer();
+    this.scheduleBotTurnIfNeeded();
     return { success: true };
   }
 
@@ -349,6 +565,9 @@ export class Room {
         isReady: p.isReady,
         isConnected: p.isConnected,
         chips: internal?.chips ?? p.chips,
+        isBot: p.isBot,
+        personality: p.personality,
+        difficulty: p.difficulty,
       };
     });
 
@@ -405,6 +624,9 @@ export class RoomManager {
   public removeRoom(code: string): void {
     const room = this.rooms.get(code.toUpperCase());
     if (room) {
+      room.clearBotTimer();
+      room.clearTurnTimer();
+      room.clearNextHandTimer();
       this.rooms.delete(code.toUpperCase());
       this.roomsById.delete(room.id);
     }

@@ -33,6 +33,7 @@ export function App() {
     floatingReactions,
     errorNotification,
     createRoom,
+    quickPlayBots,
     joinRoom,
     leaveRoom,
     toggleReady,
@@ -45,6 +46,10 @@ export function App() {
     dealNextHand,
     updateRoomConfig,
     tableAlerts,
+    addBot,
+    removeBot,
+    fillBots,
+    clearBots,
     socket,
   } = useSocket();
 
@@ -123,6 +128,8 @@ export function App() {
       {!roomState && (
         <LandingPage
           initialRoomCode={initialRoomCode}
+          playerName={playerName}
+          onQuickPlayBots={(botCount, difficulty) => quickPlayBots(undefined, botCount, difficulty)}
           onOpenCreate={() => setShowCreateModal(true)}
           onOpenJoin={() => setShowJoinModal(true)}
           onJoinRoom={handleJoinRoom}
@@ -142,6 +149,10 @@ export function App() {
             onToggleReady={toggleReady}
             onStartGame={startGame}
             onLeaveRoom={leaveRoom}
+            onAddBot={addBot}
+            onRemoveBot={removeBot}
+            onFillBots={fillBots}
+            onClearBots={clearBots}
           />
         </Suspense>
       )}
@@ -166,6 +177,10 @@ export function App() {
             onDealNextHand={dealNextHand}
             onUpdateConfig={updateRoomConfig}
             unreadChatCount={chatMessages.length}
+            onAddBot={addBot}
+            onRemoveBot={removeBot}
+            onFillBots={fillBots}
+            onClearBots={clearBots}
           />
         </Suspense>
       )}

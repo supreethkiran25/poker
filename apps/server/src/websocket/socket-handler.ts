@@ -10,6 +10,11 @@ import {
   ReactionSchema,
   UpdateConfigSchema,
   KickPlayerSchema,
+  AddBotSchema,
+  RemoveBotSchema,
+  FillBotsSchema,
+  ClearBotsSchema,
+  DEFAULT_ROOM_CONFIG,
   type ChatMessage,
   type ReactionItem,
 } from '@poker/shared';
@@ -119,6 +124,10 @@ export function registerSocketHandlers(io: Server): void {
         broadcastRoomState(room);
       };
 
+      room.onChatMessage = (msg) => {
+        io.to(`room:${room.code}`).emit('chat:message', msg);
+      };
+
       socket.emit('room:created', {
         roomCode: room.code,
         roomState: room.getPublicState(),
@@ -126,6 +135,92 @@ export function registerSocketHandlers(io: Server): void {
       });
 
       broadcastRoomState(room);
+    });
+
+    // 2b. Quick Play with Bots (1-Click Instant Game)
+    socket.on('room:quick-play-bots', (payload: unknown) => {
+      if (!checkRateLimit()) return;
+
+      const data = (payload && typeof payload === 'object') ? (payload as Record<string, any>) : {};
+      const playerName =
+        typeof data.playerName === 'string' && data.playerName.trim()
+          ? data.playerName.trim()
+          : sessionData.player.name || 'Player';
+      const avatar = typeof data.avatar === 'string' ? data.avatar : sessionData.player.avatar;
+
+      sessionData.player.name = playerName;
+      sessionData.player.avatar = avatar;
+
+      // Leave current room if already in one
+      if (sessionData.currentRoomCode) {
+        const oldRoom = roomManager.getRoomByCode(sessionData.currentRoomCode);
+        if (oldRoom) {
+          oldRoom.removePlayer(sessionData.player.playerId);
+          socket.leave(`room:${oldRoom.code}`);
+          broadcastRoomState(oldRoom);
+          broadcastGameState(oldRoom);
+        }
+      }
+
+      const difficulty =
+        typeof data.difficulty === 'string' &&
+        ['easy', 'medium', 'hard', 'mixed'].includes(data.difficulty)
+          ? (data.difficulty as any)
+          : 'mixed';
+
+      const botCount =
+        typeof data.botCount === 'number' && data.botCount >= 1 && data.botCount <= 7
+          ? data.botCount
+          : 4;
+
+      const totalSeats = botCount + 1;
+
+      const room = roomManager.createRoom(
+        sessionData.player.playerId,
+        sessionData.player.name,
+        sessionData.player.avatar,
+        {
+          ...DEFAULT_ROOM_CONFIG,
+          smallBlind: 10,
+          bigBlind: 20,
+          turnTimerSeconds: 30,
+          maxPlayers: Math.max(6, totalSeats),
+          startingChips: 1000,
+        },
+        1000
+      );
+
+      sessionData.currentRoomCode = room.code;
+      socket.join(`room:${room.code}`);
+      room.setPlayerConnection(sessionData.player.playerId, true, socket.id);
+
+      room.onStateChanged = () => {
+        broadcastGameState(room);
+        broadcastRoomState(room);
+      };
+
+      room.onChatMessage = (msg) => {
+        io.to(`room:${room.code}`).emit('chat:message', msg);
+      };
+
+      // Fill with bots of chosen difficulty (e.g. 1 human + N bots)
+      room.fillBots(totalSeats, difficulty);
+
+      // Start the hand immediately so user lands directly at live felt
+      try {
+        room.startGame();
+      } catch (err: any) {
+        console.error('Failed to auto-start quick play bots game:', err);
+      }
+
+      socket.emit('room:created', {
+        roomCode: room.code,
+        roomState: room.getPublicState(),
+        gameState: room.getGamePublicState(sessionData.player.playerId),
+      });
+
+      broadcastRoomState(room);
+      broadcastGameState(room);
     });
 
     // 3. Join Room
@@ -171,6 +266,10 @@ export function registerSocketHandlers(io: Server): void {
         room.onStateChanged = () => {
           broadcastGameState(room);
           broadcastRoomState(room);
+        };
+
+        room.onChatMessage = (msg) => {
+          io.to(`room:${room.code}`).emit('chat:message', msg);
         };
 
         socket.emit('room:joined', {
@@ -346,6 +445,139 @@ export function registerSocketHandlers(io: Server): void {
       }
     });
 
+    // 9b. Bot Management (Add, Remove, Fill, Clear)
+    socket.on('room:bot-add', (payload: unknown) => {
+      if (!checkRateLimit()) return;
+      const parsed = AddBotSchema.safeParse(payload);
+      if (!parsed.success) return;
+
+      const room = roomManager.getRoomByCode(parsed.data.roomCode);
+      if (!room) return;
+
+      // Allow host or solo human player to add bots
+      const humanCount = Array.from(room.players.values()).filter((p) => !p.isBot).length;
+      if (room.hostId !== sessionData.player.playerId && humanCount > 1) {
+        socket.emit('error:notification', {
+          code: 'UNAUTHORIZED',
+          message: 'Only the host can add bots.',
+        });
+        return;
+      }
+
+      try {
+        const bot = room.addBot(
+          parsed.data.personality,
+          parsed.data.name,
+          parsed.data.difficulty
+        );
+        broadcastRoomState(room);
+        broadcastGameState(room);
+
+        io.to(`room:${room.code}`).emit('table:alert', {
+          id: crypto.randomUUID(),
+          type: 'INFO',
+          message: `🤖 ${bot.name} joined the table!`,
+        });
+      } catch (err: any) {
+        socket.emit('error:notification', { code: 'ADD_BOT_FAILED', message: err.message });
+      }
+    });
+
+    socket.on('room:bot-remove', (payload: unknown) => {
+      if (!checkRateLimit()) return;
+      const parsed = RemoveBotSchema.safeParse(payload);
+      if (!parsed.success) return;
+
+      const room = roomManager.getRoomByCode(parsed.data.roomCode);
+      if (!room) return;
+
+      const humanCount = Array.from(room.players.values()).filter((p) => !p.isBot).length;
+      if (room.hostId !== sessionData.player.playerId && humanCount > 1) {
+        socket.emit('error:notification', {
+          code: 'UNAUTHORIZED',
+          message: 'Only the host can remove bots.',
+        });
+        return;
+      }
+
+      try {
+        const bot = room.players.get(parsed.data.botPlayerId);
+        const botName = bot?.name || 'Bot';
+        room.removeBot(parsed.data.botPlayerId);
+        broadcastRoomState(room);
+        broadcastGameState(room);
+
+        io.to(`room:${room.code}`).emit('table:alert', {
+          id: crypto.randomUUID(),
+          type: 'INFO',
+          message: `🤖 ${botName} left the table.`,
+        });
+      } catch (err: any) {
+        socket.emit('error:notification', {
+          code: 'REMOVE_BOT_FAILED',
+          message: err.message || 'Cannot remove bot',
+        });
+      }
+    });
+
+    socket.on('room:bot-fill', (payload: unknown) => {
+      if (!checkRateLimit()) return;
+      const parsed = FillBotsSchema.safeParse(payload);
+      if (!parsed.success) return;
+
+      const room = roomManager.getRoomByCode(parsed.data.roomCode);
+      if (!room) return;
+
+      const humanCount = Array.from(room.players.values()).filter((p) => !p.isBot).length;
+      if (room.hostId !== sessionData.player.playerId && humanCount > 1) {
+        socket.emit('error:notification', {
+          code: 'UNAUTHORIZED',
+          message: 'Only the host can fill table with bots.',
+        });
+        return;
+      }
+
+      const added = room.fillBots(parsed.data.targetCount, parsed.data.difficulty);
+      if (added.length > 0) {
+        broadcastRoomState(room);
+        broadcastGameState(room);
+
+        io.to(`room:${room.code}`).emit('table:alert', {
+          id: crypto.randomUUID(),
+          type: 'INFO',
+          message: `🤖 Added ${added.length} bot${added.length > 1 ? 's' : ''} to the table!`,
+        });
+      }
+    });
+
+    socket.on('room:bot-clear', (payload: unknown) => {
+      if (!checkRateLimit()) return;
+      const parsed = ClearBotsSchema.safeParse(payload);
+      if (!parsed.success) return;
+
+      const room = roomManager.getRoomByCode(parsed.data.roomCode);
+      if (!room) return;
+
+      const humanCount = Array.from(room.players.values()).filter((p) => !p.isBot).length;
+      if (room.hostId !== sessionData.player.playerId && humanCount > 1) {
+        socket.emit('error:notification', {
+          code: 'UNAUTHORIZED',
+          message: 'Only the host can remove bots.',
+        });
+        return;
+      }
+
+      room.clearBots();
+      broadcastRoomState(room);
+      broadcastGameState(room);
+
+      io.to(`room:${room.code}`).emit('table:alert', {
+        id: crypto.randomUUID(),
+        type: 'INFO',
+        message: '🤖 All bots have been removed.',
+      });
+    });
+
     // 10. Voice Signaling (WebRTC Mesh Audio)
     socket.on('voice:join', (payload: { roomCode: string }) => {
       const roomCode = payload?.roomCode?.toUpperCase();
@@ -428,6 +660,15 @@ export function registerSocketHandlers(io: Server): void {
         room.removePlayer(sessionData.player.playerId);
         socket.leave(`room:${room.code}`);
         sessionData.currentRoomCode = undefined;
+
+        // If no human players remain connected in the room, pause bots
+        const activeHumans = Array.from(room.players.values()).filter(
+          (p) => !p.isBot && p.isConnected
+        );
+        if (activeHumans.length === 0) {
+          room.clearBotTimer();
+        }
+
         broadcastRoomState(room);
         broadcastGameState(room);
 

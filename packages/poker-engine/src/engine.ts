@@ -8,6 +8,8 @@ import type {
   ActionType,
   LegalAction,
   SidePot,
+  BotPersonality,
+  BotDifficulty,
 } from '@poker/shared';
 import { Deck } from './deck.js';
 import { evaluateHand } from './evaluator.js';
@@ -41,6 +43,9 @@ export interface InternalPlayer {
   isReady: boolean;
   isHost: boolean;
   lastAction: { type: ActionType; amount?: number } | null;
+  isBot?: boolean;
+  personality?: BotPersonality;
+  difficulty?: BotDifficulty;
 }
 
 export class PokerEngine {
@@ -105,7 +110,10 @@ export class PokerEngine {
     name: string,
     avatar: string,
     seatIndex?: number,
-    buyIn?: number
+    buyIn?: number,
+    isBot: boolean = false,
+    personality?: BotPersonality,
+    difficulty?: BotDifficulty
   ): InternalPlayer {
     const existing = this.players.find((p) => p !== null && p.id === id);
     if (existing) {
@@ -137,9 +145,12 @@ export class PokerEngine {
       isAllIn: false,
       hasActedInRound: false,
       isConnected: true,
-      isReady: isFirst, // First player (host) is ready
-      isHost: isFirst,
+      isReady: isFirst || isBot, // First player (host) and bots are ready
+      isHost: isFirst && !isBot,
       lastAction: null,
+      isBot,
+      personality,
+      difficulty,
     };
 
     this.players[targetSeat] = newPlayer;
@@ -735,6 +746,9 @@ export class PokerEngine {
         isTurn: this.activeSeatIndex !== null && this.players[this.activeSeatIndex]?.id === p.id,
         holeCards,
         lastAction: p.lastAction,
+        isBot: p.isBot,
+        personality: p.personality,
+        difficulty: p.difficulty,
       });
     }
 

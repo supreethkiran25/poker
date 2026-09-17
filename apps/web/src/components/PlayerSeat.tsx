@@ -22,6 +22,8 @@ interface PlayerSeatProps {
   showdownHoleCards?: any[];
   isHandComplete?: boolean;
   chipPlacement?: 'top' | 'bottom' | 'none';
+  onKickBot?: (botId: string) => void;
+  isHost?: boolean;
 }
 
 export const PlayerSeat: React.FC<PlayerSeatProps> = ({
@@ -40,13 +42,15 @@ export const PlayerSeat: React.FC<PlayerSeatProps> = ({
   showdownHoleCards,
   isHandComplete = false,
   chipPlacement = 'top',
+  onKickBot,
+  isHost = false,
 }) => {
   const isDealer = player.seatIndex === dealerSeat;
   const isSB = player.seatIndex === smallBlindSeat;
   const isBB = player.seatIndex === bigBlindSeat;
   const [imgError, setImgError] = useState(false);
 
-  // Compute portrait avatar URL
+  // Compute portrait avatar URL (realistic human personas)
   const avatarUrl = React.useMemo(() => {
     if (player.avatar && (player.avatar.startsWith('http') || player.avatar.startsWith('data:'))) {
       return player.avatar;
@@ -114,7 +118,7 @@ export const PlayerSeat: React.FC<PlayerSeatProps> = ({
         } ${compact ? 'px-2 py-1' : 'px-3 py-1.5'}`}
         style={{
           minWidth: compact ? '80px' : '110px',
-          maxWidth: compact ? '130px' : '170px',
+          maxWidth: compact ? '150px' : '200px',
         }}
       >
         {/* Avatar with speaking wave, dealer button, & turn countdown ring */}
@@ -211,24 +215,38 @@ export const PlayerSeat: React.FC<PlayerSeatProps> = ({
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-1 min-w-0">
             <span
-              className={`font-bold text-zinc-100 truncate leading-none ${
-                compact ? 'text-[10px]' : 'text-xs'
+              className={`font-bold text-zinc-100 truncate leading-tight ${
+                compact ? 'text-[11px]' : 'text-xs'
               }`}
+              title={player.name}
             >
               {player.name}
             </span>
             {isMe && (
-              <span className="text-[7px] bg-emerald-500/20 text-emerald-400 px-1 py-0.5 rounded font-mono font-bold flex-shrink-0 leading-none">
+              <span className="text-[8px] bg-emerald-500/25 text-emerald-400 px-1 py-0.5 rounded font-mono font-bold flex-shrink-0 leading-none">
                 YOU
               </span>
             )}
+            {player.isBot && (
+              <span
+                className={`text-[7.5px] px-1 py-0.5 rounded font-mono font-black flex-shrink-0 leading-none tracking-wider border ${
+                  player.difficulty === 'easy'
+                    ? 'bg-emerald-950/80 text-emerald-300 border-emerald-500/50'
+                    : player.difficulty === 'hard'
+                    ? 'bg-rose-950/80 text-rose-300 border-rose-500/50'
+                    : 'bg-amber-950/80 text-amber-300 border-amber-500/50'
+                }`}
+              >
+                {player.difficulty ? player.difficulty.toUpperCase() : 'BOT'}
+              </span>
+            )}
             {isWinner && (
-              <span className="text-[7px] bg-amber-400 text-zinc-950 px-1 py-0.5 rounded font-mono font-black flex-shrink-0 leading-none shadow">
+              <span className="text-[8px] bg-amber-400 text-zinc-950 px-1 py-0.5 rounded font-mono font-black flex-shrink-0 leading-none shadow">
                 WIN
               </span>
             )}
           </div>
-          <div className="mt-0.5">
+          <div className="mt-0.5 flex items-center gap-1">
             <span
               className={`text-amber-300 font-mono font-bold leading-none ${
                 compact ? 'text-[10px]' : 'text-[11px]'
@@ -236,6 +254,11 @@ export const PlayerSeat: React.FC<PlayerSeatProps> = ({
             >
               {formatRupee(player.chips)}
             </span>
+            {player.hasFolded && (
+              <span className="text-[8px] text-zinc-500 font-mono uppercase font-bold leading-none">
+                • FOLD
+              </span>
+            )}
           </div>
         </div>
 
