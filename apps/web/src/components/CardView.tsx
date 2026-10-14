@@ -79,13 +79,13 @@ const getRankStr = (rank: number): string => {
   return String(rank);
 };
 
-// ── Exact Aspect Ratio (79px : 114px = 1 : 1.443) ──
+// ── Exact Aspect Ratio (1 : 1.44) ──
 const SIZE_CLASSES = {
-  xs: 'w-[32px] h-[46px] rounded-[4px]',
-  sm: 'w-[46px] h-[66px] rounded-[5px]',
-  md: 'w-[64px] h-[92px] rounded-[6px]',
-  lg: 'w-[80px] h-[115px] rounded-[7px]',
-  xl: 'w-[94px] h-[135px] rounded-[8px]',
+  xs: 'w-[30px] h-[44px] rounded-[4px]',
+  sm: 'w-[42px] h-[60px] rounded-[5px]',
+  md: 'w-[56px] h-[80px] rounded-[6px]',
+  lg: 'w-[68px] h-[98px] rounded-[7px]',
+  xl: 'w-[80px] h-[115px] rounded-[8px]',
 };
 
 export const CardView: React.FC<CardViewProps> = ({

@@ -215,6 +215,10 @@ export class PokerEngine {
     }
   }
 
+  public getPot(): number {
+    return this.pot;
+  }
+
   public isHandInProgress(): boolean {
     return (
       this.phase === 'PREFLOP' ||

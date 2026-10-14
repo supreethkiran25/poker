@@ -8,7 +8,7 @@ interface JoinTableModalProps {
   onJoin: (code: string, name: string, buyIn?: number) => void;
 }
 
-const BUY_IN_PRESETS = [0, 2000, 5000, 10000, 25000, 50000];
+const BUY_IN_PRESETS = [0, 5000, 10000, 25000, 50000, 100000];
 
 export const JoinTableModal: React.FC<JoinTableModalProps> = ({
   initialCode = '',
@@ -22,7 +22,7 @@ export const JoinTableModal: React.FC<JoinTableModalProps> = ({
   );
   const [linkInput, setLinkInput] = useState('');
   const [showQR, setShowQR] = useState(false);
-  const [buyIn, setBuyIn] = useState<number>(10000);
+  const [buyIn, setBuyIn] = useState<number>(100000);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();

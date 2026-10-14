@@ -11,6 +11,7 @@ import type {
   BotDifficulty,
 } from '@poker/shared';
 import { soundManager } from '../audio/sound-manager.js';
+import { setAccountCoins, getDeviceId } from '../utils/accountWallet.js';
 
 export interface FloatingReaction extends ReactionItem {
   key: string;
@@ -33,7 +34,15 @@ export function useSocket() {
   const [errorNotification, setErrorNotification] = useState<string | null>(null);
   const [tableAlerts, setTableAlerts] = useState<TableAlert[]>([]);
 
-  const [playerId, setPlayerId] = useState<string>(() => localStorage.getItem('poker_player_id') || '');
+  const [playerId, setPlayerId] = useState<string>(() => {
+    const stored = typeof window !== 'undefined' ? localStorage.getItem('poker_player_id') : null;
+    if (stored) return stored;
+    const devId = getDeviceId();
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('poker_player_id', devId);
+    }
+    return devId;
+  });
   const [sessionToken, setSessionToken] = useState<string>(() => localStorage.getItem('poker_session_token') || '');
   const [playerName, setPlayerName] = useState<string>(() => localStorage.getItem('poker_player_name') || 'Player');
   const [avatar, setAvatar] = useState<string>(() => localStorage.getItem('poker_avatar') || 'avatar-1');
@@ -41,6 +50,7 @@ export function useSocket() {
   // Track turn to play sound only on transition to my turn
   const prevIsTurnRef = useRef(false);
   const roomStateRef = useRef<RoomPublicState | null>(null);
+  const prevGameStateRef = useRef<GamePublicState | null>(null);
 
   // ── Active Tab Keep-Alive for Render (Prevents Free-Tier Sleep while tab/link is open) ──
   useEffect(() => {
@@ -168,16 +178,57 @@ export function useSocket() {
     });
 
     socket.on('game:state', (state: GamePublicState) => {
+      const prevState = prevGameStateRef.current;
+      prevGameStateRef.current = state;
       setGameState(state);
 
-      // Sound triggers
-      const me = state.players.find((p) => p.id === localStorage.getItem('poker_player_id'));
+      const myId = localStorage.getItem('poker_player_id');
+      const me = state.players.find((p) => p.id === myId);
+
+      // Turn alert: Gentle casino chime when action lands on me
       if (me?.isTurn && !prevIsTurnRef.current) {
         soundManager.playTurnAlert();
       }
       prevIsTurnRef.current = me?.isTurn ?? false;
 
-      if (state.phase === 'HAND_COMPLETE' && state.lastHandResult) {
+      // Realistic Acoustic Logic: Detect opponents/bots calls, raises, all-ins, checks, folds
+      if (prevState && state.handNumber === prevState.handNumber) {
+        for (const player of state.players) {
+          if (player.id !== myId && player.lastAction) {
+            const prevPlayer = prevState.players.find((p) => p.id === player.id);
+            const prevAction = prevPlayer?.lastAction;
+            const isNewAction =
+              !prevAction ||
+              prevAction.type !== player.lastAction.type ||
+              prevAction.amount !== player.lastAction.amount ||
+              player.currentBet > (prevPlayer?.currentBet || 0);
+
+            if (isNewAction) {
+              if (player.isAllIn) {
+                soundManager.playAllInChips();
+              } else if (player.lastAction.type === 'raise' || player.lastAction.type === 'bet') {
+                soundManager.playRaiseChips(player.lastAction.amount);
+              } else if (player.lastAction.type === 'call') {
+                soundManager.playCallChips(player.lastAction.amount);
+              } else if (player.lastAction.type === 'check') {
+                soundManager.playCheck();
+              } else if (player.lastAction.type === 'fold') {
+                soundManager.playFold();
+              }
+              break;
+            }
+          }
+        }
+      }
+
+      // Community cards dealt / street change: Card deal sound & pot collection
+      if (prevState && state.communityCards.length > prevState.communityCards.length) {
+        soundManager.playCardDeal();
+        soundManager.playPotCollect();
+      }
+
+      // Showdown / Pot award
+      if (state.phase === 'HAND_COMPLETE' && prevState?.phase !== 'HAND_COMPLETE' && state.lastHandResult) {
         soundManager.playWin();
       }
     });
@@ -269,7 +320,7 @@ export function useSocket() {
   );
 
   const quickPlayBots = useCallback(
-    (customName?: string, botCount: number = 4, difficulty: BotDifficulty | 'mixed' = 'mixed') => {
+    (customName?: string, botCount: number = 4, difficulty: BotDifficulty | 'mixed' = 'mixed', buyIn?: number) => {
       if (!socketRef.current) return;
       const storedName = localStorage.getItem('poker_player_name');
       const finalName = customName || storedName || playerName || 'Player';
@@ -285,6 +336,7 @@ export function useSocket() {
         avatar: av,
         botCount,
         difficulty,
+        buyIn,
       });
     },
     [avatar, playerName]
@@ -315,13 +367,20 @@ export function useSocket() {
 
   const leaveRoom = useCallback(() => {
     if (!socketRef.current || !roomState) return;
+    // When player exits table, set credit section to exact chips they had while leaving
+    const mySeat = prevGameStateRef.current?.players?.find((p) => p.id === playerId)
+      ?? roomState.players?.find((p) => p.id === playerId);
+    if (mySeat && typeof mySeat.chips === 'number') {
+      setAccountCoins(mySeat.chips);
+    }
     socketRef.current.emit('room:leave', { roomCode: roomState.code });
     roomStateRef.current = null;
+    prevGameStateRef.current = null;
     localStorage.removeItem('poker_active_room_code');
     setRoomState(null);
     setGameState(null);
     window.history.pushState({}, '', '/');
-  }, [roomState]);
+  }, [roomState, playerId]);
 
   const toggleReady = useCallback((ready: boolean) => {
     if (!socketRef.current || !roomState) return;
@@ -339,7 +398,9 @@ export function useSocket() {
 
     if (type === 'check') soundManager.playCheck();
     else if (type === 'fold') soundManager.playFold();
-    else soundManager.playChips();
+    else if (type === 'all-in') soundManager.playAllInChips();
+    else if (type === 'raise' || type === 'bet') soundManager.playRaiseChips(amount);
+    else soundManager.playCallChips(amount);
 
     socketRef.current.emit('game:action', {
       roomCode: roomState.code,

@@ -10,15 +10,19 @@ import {
   Sparkles,
   X,
   Check,
+  RotateCcw,
 } from 'lucide-react';
 import type { BotDifficulty } from '@poker/shared';
-import { VIRTUAL_CURRENCY_DISCLAIMER } from '@poker/shared';
+import { formatRupee, VIRTUAL_CURRENCY_DISCLAIMER } from '@poker/shared';
 import { RulesModal } from '../components/RulesModal.js';
+import { useAccountWallet } from '../utils/accountWallet.js';
+import { GoldCoin3D } from '../components/CasinoChip3D.js';
+import { ZeroBalanceReloadModal } from '../components/ZeroBalanceReloadModal.js';
 
 interface LandingPageProps {
   initialRoomCode?: string;
   playerName?: string;
-  onQuickPlayBots: (botCount?: number, difficulty?: BotDifficulty | 'mixed') => void;
+  onQuickPlayBots: (botCount?: number, difficulty?: BotDifficulty | 'mixed', buyIn?: number) => void;
   onOpenCreate: () => void;
   onOpenJoin: () => void;
   onJoinRoom: (code: string, name: string, buyIn?: number) => void;
@@ -32,11 +36,14 @@ export const LandingPage: React.FC<LandingPageProps> = ({
   onOpenJoin,
   onJoinRoom,
 }) => {
+  const { coins, showWelcome, dismissWelcome } = useAccountWallet();
   const [showRules, setShowRules] = useState(false);
   const [showFaq, setShowFaq] = useState(false);
   const [showPlayModal, setShowPlayModal] = useState(false);
+  const [showZeroReload, setShowZeroReload] = useState(false);
   const [selectedDifficulty, setSelectedDifficulty] = useState<BotDifficulty | 'mixed'>('mixed');
   const [selectedBotCount, setSelectedBotCount] = useState<number>(5);
+
 
   return (
     <div className="min-h-screen flex flex-col justify-between bg-[#06080d] text-zinc-100 selection:bg-amber-500 selection:text-zinc-950 relative overflow-hidden">
@@ -101,6 +108,27 @@ export const LandingPage: React.FC<LandingPageProps> = ({
 
         {/* Right Nav Action */}
         <div className="flex items-center gap-3">
+          {/* User Account Coins Balance */}
+          {coins <= 0 ? (
+            <button
+              onClick={() => setShowZeroReload(true)}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-gradient-to-r from-amber-500 to-yellow-400 text-zinc-950 font-black text-xs shadow-md animate-pulse active:scale-95 transition"
+              title="Your balance is ₹0! Claim a fresh reload of ₹1,00,000 coins"
+            >
+              <RotateCcw className="w-3.5 h-3.5 text-zinc-950" />
+              <span>Reload 100k</span>
+            </button>
+          ) : (
+            <div
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-zinc-900/90 border border-amber-500/50 text-amber-300 shadow-md backdrop-blur-md"
+              title="Your Virtual Account Balance"
+            >
+              <GoldCoin3D sizePx={18} tiltDeg={-8} />
+              <span className="font-mono font-bold text-xs">{formatRupee(coins)}</span>
+            </div>
+          )}
+
+
           <button
             onClick={() => setShowPlayModal(true)}
             className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-amber-500 to-yellow-500 hover:from-amber-400 hover:to-yellow-400 text-zinc-950 font-black text-xs uppercase tracking-wider rounded-full shadow-lg shadow-amber-500/20 hover:shadow-amber-500/30 transition-all duration-200 active:scale-95 group"
@@ -360,7 +388,11 @@ export const LandingPage: React.FC<LandingPageProps> = ({
               <button
                 onClick={() => {
                   setShowPlayModal(false);
-                  onQuickPlayBots(selectedBotCount, selectedDifficulty);
+                  onQuickPlayBots(
+                    selectedBotCount,
+                    selectedDifficulty,
+                    coins >= 100 ? Math.min(coins, 100000) : 100000
+                  );
                 }}
                 className="w-full py-4 bg-gradient-to-r from-amber-400 via-amber-500 to-yellow-500 hover:from-amber-300 hover:to-yellow-400 text-zinc-950 font-black text-sm uppercase tracking-wider rounded-2xl shadow-xl shadow-amber-500/20 hover:shadow-amber-500/30 transition-all duration-200 active:scale-95 flex items-center justify-center gap-2 group"
               >
@@ -395,6 +427,49 @@ export const LandingPage: React.FC<LandingPageProps> = ({
           </div>
         </div>
       )}
+      {/* ── 100,000 Free Coins Welcome Gift Modal ── */}
+      {showWelcome && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 backdrop-blur-md p-4 animate-fade-in">
+          <div className="bg-gradient-to-b from-zinc-900 via-zinc-950 to-zinc-950 border-2 border-amber-400/90 rounded-3xl p-6 sm:p-8 max-w-md w-full shadow-[0_0_60px_rgba(245,158,11,0.35)] text-center flex flex-col items-center gap-4 relative">
+            <div className="relative mb-1">
+              <GoldCoin3D sizePx={64} tiltDeg={-10} />
+              <span className="absolute -top-1 -right-1 flex h-4 w-4">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75" />
+                <span className="relative inline-flex rounded-full h-4 w-4 bg-amber-500" />
+              </span>
+            </div>
+
+            <span className="text-[10px] font-mono font-bold tracking-widest text-amber-400 uppercase bg-amber-500/15 px-3 py-1 rounded-full border border-amber-500/40">
+              WELCOME GIFT CREDITED
+            </span>
+
+            <h2 className="text-2xl sm:text-3xl font-serif font-black text-white">
+              ₹1,00,000 Free Coins!
+            </h2>
+
+            <p className="text-xs sm:text-sm text-zinc-300 leading-relaxed">
+              Welcome to PokerCircle! We have credited <strong>₹1,00,000</strong> free virtual chips into your account wallet. Play with friends or practice with smart AI bots right now!
+            </p>
+
+            <button
+              onClick={dismissWelcome}
+              className="w-full py-3.5 bg-gradient-to-r from-amber-500 via-yellow-400 to-amber-500 hover:from-amber-400 hover:to-yellow-300 text-zinc-950 font-black text-sm uppercase tracking-wider rounded-2xl shadow-xl transition active:scale-95 flex items-center justify-center gap-2 mt-2"
+            >
+              <Sparkles className="w-4 h-4 fill-zinc-950" />
+              <span>Claim & Start Playing</span>
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* ══ Zero Balance Reload Modal ══ */}
+      <ZeroBalanceReloadModal
+        isOpen={showZeroReload}
+        onClose={() => setShowZeroReload(false)}
+        onReloadSuccess={() => setShowZeroReload(false)}
+      />
+
     </div>
   );
+
 };

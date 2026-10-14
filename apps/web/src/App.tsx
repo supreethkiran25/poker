@@ -196,7 +196,7 @@ export function App() {
         <LandingPage
           initialRoomCode=""
           playerName={playerName}
-          onQuickPlayBots={(botCount, difficulty) => quickPlayBots(undefined, botCount, difficulty)}
+          onQuickPlayBots={(botCount, difficulty, buyIn) => quickPlayBots(undefined, botCount, difficulty, buyIn)}
           onOpenCreate={() => setShowCreateModal(true)}
           onOpenJoin={() => setShowJoinModal(true)}
           onJoinRoom={handleJoinRoom}

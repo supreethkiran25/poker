@@ -4,6 +4,7 @@ import { formatRupee } from '@poker/shared';
 import { CardView } from './CardView.js';
 import { ChipStack } from './ChipStack.js';
 import { Mic, MicOff, Clock } from 'lucide-react';
+import type { HandEquityResult } from '../utils/handEquityCalculator.js';
 
 interface PlayerSeatProps {
   player: PlayerPublicState;
@@ -26,7 +27,9 @@ interface PlayerSeatProps {
   isHost?: boolean;
   playerCount?: number;
   isMobilePortrait?: boolean;
+  winEquity?: HandEquityResult | null;
 }
+
 
 export const PlayerSeat: React.FC<PlayerSeatProps> = ({
   player,
@@ -45,14 +48,26 @@ export const PlayerSeat: React.FC<PlayerSeatProps> = ({
   isHandComplete = false,
   chipPlacement = 'top',
   onKickBot,
-  isHost = false,
   playerCount = 2,
   isMobilePortrait = false,
+  winEquity = null,
 }) => {
   const isDealer = player.seatIndex === dealerSeat;
   const isSB = player.seatIndex === smallBlindSeat;
   const isBB = player.seatIndex === bigBlindSeat;
   const [imgError, setImgError] = useState(false);
+
+  // Dynamic equity tier color configuration
+  const tierConfig = winEquity
+    ? {
+        nuts: { bar: 'from-amber-400 via-yellow-300 to-amber-500', text: 'text-amber-300' },
+        strong: { bar: 'from-emerald-400 via-teal-400 to-emerald-500', text: 'text-emerald-300' },
+        good: { bar: 'from-sky-400 via-cyan-400 to-blue-500', text: 'text-sky-300' },
+        medium: { bar: 'from-amber-500 via-orange-400 to-amber-600', text: 'text-amber-400' },
+        weak: { bar: 'from-rose-500 via-pink-500 to-red-600', text: 'text-rose-400' },
+      }[winEquity.tier]
+    : null;
+
 
   // Ultra-compact mode: ≥6 players on mobile portrait (not for "me" seat)
   const isUltraCompact = isMobilePortrait && playerCount >= 6 && !isMe;
@@ -124,10 +139,15 @@ export const PlayerSeat: React.FC<PlayerSeatProps> = ({
             : 'border-zinc-800'
         } ${isUltraCompact ? 'px-1.5 py-0.5' : compact ? 'px-2 py-1' : 'px-3 py-1.5'}`}
         style={{
-          minWidth: isUltraCompact ? '64px' : compact ? '80px' : '110px',
-          maxWidth: isUltraCompact ? '110px' : compact ? '150px' : '200px',
+          minWidth: isMe && winEquity
+            ? (compact ? '150px' : '185px')
+            : (isUltraCompact ? '64px' : compact ? '80px' : '110px'),
+          maxWidth: isMe && winEquity
+            ? (compact ? '230px' : '275px')
+            : (isUltraCompact ? '110px' : compact ? '150px' : '200px'),
         }}
       >
+
         {/* Avatar with speaking wave, dealer button, & turn countdown ring */}
         <div className="relative flex-shrink-0 flex items-center justify-center">
           {/* Speaking glowing pulse ring */}
@@ -232,7 +252,7 @@ export const PlayerSeat: React.FC<PlayerSeatProps> = ({
 
         {/* Player name & chip balance */}
         <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-1 min-w-0">
+          <div className="flex items-center gap-1.5 min-w-0">
             <span
               className={`font-bold text-zinc-100 truncate leading-tight ${
                 isUltraCompact ? 'text-[9px]' : compact ? 'text-[11px]' : 'text-xs'
@@ -242,10 +262,33 @@ export const PlayerSeat: React.FC<PlayerSeatProps> = ({
               {player.name}
             </span>
             {isMe && (
-              <span className="text-[8px] bg-emerald-500/25 text-emerald-400 px-1 py-0.5 rounded font-mono font-bold flex-shrink-0 leading-none">
+              <span className="text-[7.5px] bg-emerald-500/25 text-emerald-400 px-1 py-0.5 rounded font-mono font-bold flex-shrink-0 leading-none">
                 YOU
               </span>
             )}
+
+            {/* ── Dynamic Win % Bar & Number right next to Player Name (User Request) ── */}
+            {isMe && winEquity && !player.hasFolded && (
+              <div
+                className="flex items-center gap-1.5 px-1.5 py-0.5 rounded-md bg-zinc-900/90 border border-zinc-700/80 shadow-inner shrink-0"
+                title={`Live Win Probability: ${winEquity.winPercent}% (${winEquity.handTitle})`}
+              >
+                {/* Horizontal Progress Bar */}
+                <div className="w-10 sm:w-14 h-2 rounded-full bg-zinc-800/95 overflow-hidden border border-zinc-700/50 relative">
+                  <div
+                    className={`h-full rounded-full bg-gradient-to-r ${tierConfig?.bar || 'from-emerald-400 to-emerald-500'} transition-all duration-300 shadow-sm`}
+                    style={{ width: `${winEquity.winPercent}%` }}
+                  />
+                </div>
+                {/* Dynamic percentage number */}
+                <span
+                  className={`font-mono font-black text-[9.5px] sm:text-[10.5px] leading-none ${tierConfig?.text || 'text-emerald-300'}`}
+                >
+                  {winEquity.winPercent}%
+                </span>
+              </div>
+            )}
+
             {player.isBot && !isUltraCompact && (
               <span
                 className={`text-[7.5px] px-1 py-0.5 rounded font-mono font-black flex-shrink-0 leading-none tracking-wider border ${
@@ -265,7 +308,7 @@ export const PlayerSeat: React.FC<PlayerSeatProps> = ({
               </span>
             )}
           </div>
-          <div className="mt-0.5 flex items-center gap-1">
+          <div className="mt-0.5 flex items-center gap-1.5">
             <span
               className={`text-amber-300 font-mono font-bold leading-none ${
                 isUltraCompact ? 'text-[9px]' : compact ? 'text-[10px]' : 'text-[11px]'
@@ -273,12 +316,18 @@ export const PlayerSeat: React.FC<PlayerSeatProps> = ({
             >
               {formatRupee(player.chips)}
             </span>
+            {isMe && winEquity && !player.hasFolded && (
+              <span className="text-[8.5px] sm:text-[9.5px] font-sans font-medium text-zinc-400 truncate max-w-[95px] sm:max-w-[130px]">
+                • {winEquity.handTitle}
+              </span>
+            )}
             {player.hasFolded && (
               <span className="text-[8px] text-zinc-500 font-mono uppercase font-bold leading-none">
                 • FOLD
               </span>
             )}
           </div>
+
         </div>
 
         {/* Dealer / Small Blind / Big Blind Buttons */}

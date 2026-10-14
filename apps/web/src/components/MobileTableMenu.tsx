@@ -8,8 +8,12 @@ import {
   Settings,
   LogOut,
   Bot,
+  Receipt,
+  Lock,
 } from 'lucide-react';
 import { formatRupee } from '@poker/shared';
+import { useAccountWallet } from '../utils/accountWallet.js';
+import { GoldCoin3D } from './CasinoChip3D.js';
 
 interface MobileTableMenuProps {
   isOpen: boolean;
@@ -24,8 +28,11 @@ interface MobileTableMenuProps {
   onOpenHistory: () => void;
   onOpenRules: () => void;
   onOpenSettings: () => void;
+  onOpenLedger?: () => void;
   onLeaveRoom: () => void;
   onOpenAddBot?: () => void;
+  canRebuy?: boolean;
+  rebuyDisabledReason?: string;
 }
 
 export const MobileTableMenu: React.FC<MobileTableMenuProps> = ({
@@ -41,9 +48,14 @@ export const MobileTableMenu: React.FC<MobileTableMenuProps> = ({
   onOpenHistory,
   onOpenRules,
   onOpenSettings,
+  onOpenLedger,
   onLeaveRoom,
   onOpenAddBot,
+  canRebuy = true,
+  rebuyDisabledReason,
 }) => {
+  const { coins } = useAccountWallet();
+
   if (!isOpen) return null;
 
   return (
@@ -76,8 +88,22 @@ export const MobileTableMenu: React.FC<MobileTableMenuProps> = ({
           </button>
         </div>
 
+        {/* Account Wallet Balance Banner */}
+        <div className="mt-3 p-3 rounded-2xl bg-zinc-900/90 border border-amber-500/40 flex items-center justify-between shadow-md">
+          <div className="flex items-center gap-2.5">
+            <GoldCoin3D sizePx={24} tiltDeg={-8} />
+            <div>
+              <div className="text-[10px] font-mono uppercase text-zinc-400 font-bold leading-tight">Account Wallet</div>
+              <div className="text-sm font-black font-mono text-amber-300 leading-tight mt-0.5">{formatRupee(coins)}</div>
+            </div>
+          </div>
+          <span className="text-[10px] font-mono font-bold text-emerald-400 bg-emerald-500/15 px-2 py-0.5 rounded-full border border-emerald-500/30">
+            Active
+          </span>
+        </div>
+
         {/* Invite Code Quick Card */}
-        <div className="my-4 p-3 bg-zinc-900/90 rounded-2xl border border-amber-500/30 flex items-center justify-between gap-2 shadow-inner">
+        <div className="my-3 p-3 bg-zinc-900/90 rounded-2xl border border-amber-500/30 flex items-center justify-between gap-2 shadow-inner">
           <div className="min-w-0">
             <div className="text-[10px] text-amber-400/90 uppercase tracking-wider font-bold">
               Room Invite Code
@@ -106,20 +132,57 @@ export const MobileTableMenu: React.FC<MobileTableMenuProps> = ({
 
         {/* Action Grid */}
         <div className="grid grid-cols-2 gap-2.5 my-3">
+          {/* Table Ledger & Summary */}
+          {onOpenLedger && (
+            <button
+              onClick={() => {
+                onClose();
+                onOpenLedger();
+              }}
+              className="p-3 bg-zinc-900/90 hover:bg-zinc-800/90 active:scale-98 rounded-2xl border border-amber-500/30 flex items-center gap-3 transition text-left col-span-2 bg-gradient-to-r from-amber-500/10 via-zinc-900/90 to-zinc-900/90 shadow-md"
+            >
+              <div className="w-10 h-10 rounded-xl bg-amber-500/20 border border-amber-500/40 flex items-center justify-center text-amber-400 shrink-0">
+                <Receipt className="w-5 h-5" />
+              </div>
+              <div className="flex-1">
+                <div className="text-xs font-bold text-white flex items-center justify-between">
+                  <span>Table Ledger & Summary</span>
+                  <span className="text-[9px] font-mono bg-amber-500/20 text-amber-300 px-1.5 py-0.5 rounded">
+                    Audit
+                  </span>
+                </div>
+                <div className="text-[10px] text-zinc-400">Track buy-ins, rebuys & profit/loss</div>
+              </div>
+            </button>
+          )}
+
           {/* Rebuy Chips */}
           <button
+            disabled={!canRebuy}
             onClick={() => {
+              if (!canRebuy) return;
               onClose();
               onOpenRebuy();
             }}
-            className="p-3 bg-zinc-900/90 hover:bg-zinc-800/90 active:scale-98 rounded-2xl border border-zinc-800 flex items-center gap-3 transition text-left"
+            className={`p-3 rounded-2xl border flex items-center gap-3 transition text-left ${
+              canRebuy
+                ? 'bg-zinc-900/90 hover:bg-zinc-800/90 active:scale-98 border-zinc-800 cursor-pointer'
+                : 'bg-zinc-950/60 border-zinc-900 opacity-50 cursor-not-allowed'
+            }`}
+            title={canRebuy ? 'Rebuy Chips' : (rebuyDisabledReason || 'Cannot rebuy while hand is active or while you have chips')}
           >
-            <div className="w-10 h-10 rounded-xl bg-amber-500/15 border border-amber-500/30 flex items-center justify-center text-amber-400 shrink-0">
-              <Coins className="w-5 h-5" />
+            <div className={`w-10 h-10 rounded-xl border flex items-center justify-center shrink-0 ${
+              canRebuy
+                ? 'bg-amber-500/15 border-amber-500/30 text-amber-400'
+                : 'bg-zinc-900 border-zinc-800 text-zinc-600'
+            }`}>
+              {canRebuy ? <Coins className="w-5 h-5" /> : <Lock className="w-4 h-4 text-zinc-600" />}
             </div>
             <div>
               <div className="text-xs font-bold text-white">Rebuy Chips</div>
-              <div className="text-[10px] text-zinc-400">Add to stack</div>
+              <div className="text-[10px] text-zinc-400 truncate max-w-[90px]">
+                {canRebuy ? 'Add to stack' : 'Locked mid-hand'}
+              </div>
             </div>
           </button>
 

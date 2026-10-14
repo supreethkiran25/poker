@@ -66,8 +66,8 @@ export const CommunityCards: React.FC<CommunityCardsProps> = ({
           <div
             key={idx}
             className={`${
-              ultraCompact ? 'w-[32px] h-[46px] rounded-[4px]' : compact ? 'w-[46px] h-[66px] rounded-[5px]' : 'w-[64px] h-[92px] rounded-[6px]'
-            } border border-dashed border-amber-400/25 flex flex-col items-center justify-between py-1.5 transition-all bg-gradient-to-b from-black/45 via-[#03150d]/50 to-black/65 shadow-[inset_0_3px_10px_rgba(0,0,0,0.85),0_1px_3px_rgba(251,191,36,0.06)] relative group select-none`}
+              ultraCompact ? 'w-[30px] h-[44px] rounded-[4px]' : compact ? 'w-[42px] h-[60px] rounded-[5px]' : 'w-[56px] h-[80px] rounded-[6px]'
+            } border border-dashed border-amber-400/25 flex flex-col items-center justify-between py-1 transition-all bg-gradient-to-b from-black/45 via-[#03150d]/50 to-black/65 shadow-[inset_0_3px_10px_rgba(0,0,0,0.85),0_1px_3px_rgba(251,191,36,0.06)] relative group select-none`}
           >
             {/* Subtle top corner accent */}
             <div className="w-full flex justify-between px-1 opacity-20">

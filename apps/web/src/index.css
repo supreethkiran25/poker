@@ -224,3 +224,42 @@ body {
     padding-bottom: env(safe-area-inset-bottom);
   }
 }
+
+/* ── 3D Chips Out Fly Animation (Pot directly to Winning Player's Seat) ── */
+@keyframes chipFlyDirectional {
+  0% {
+    opacity: 0;
+    transform: translate(0, 0) scale(0.55) rotate(0deg);
+  }
+  15% {
+    opacity: 1;
+    transform: translate(
+      calc(var(--dx, 0px) * 0.12 + var(--sx, 0px)),
+      calc(var(--dy, 120px) * 0.12 + var(--sy, 0px) - 18px)
+    ) scale(1.18) rotate(20deg);
+  }
+  65% {
+    opacity: 1;
+    transform: translate(
+      calc(var(--dx, 0px) * 0.72 + var(--sx, 0px) * 0.3),
+      calc(var(--dy, 120px) * 0.72)
+    ) scale(1.15) rotate(55deg);
+  }
+  88% {
+    opacity: 0.95;
+    transform: translate(var(--dx, 0px), var(--dy, 150px)) scale(0.92) rotate(80deg);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(var(--dx, 0px), var(--dy, 150px)) scale(0.65) rotate(95deg);
+  }
+}
+
+.animate-chip-fly-directional {
+  animation: chipFlyDirectional 1.7s cubic-bezier(0.2, 0.9, 0.3, 1) forwards;
+}
+
+.animate-chip-fly {
+  animation: chipFlyDirectional 1.7s cubic-bezier(0.2, 0.9, 0.3, 1) forwards;
+}
+

@@ -8,6 +8,9 @@ import {
   type ReactionItem,
   type BotPersonality,
   type BotDifficulty,
+  type PlayerLedgerEntry,
+  type RoomLedgerSummary,
+  type PlayerLedgerStatus,
   BOT_PROFILES,
   DEFAULT_ROOM_CONFIG,
 } from '@poker/shared';
@@ -40,6 +43,9 @@ export class Room {
   public hostId: string;
   public config: RoomConfig;
   public players: Map<string, RoomPlayer> = new Map();
+  public ledger: Map<string, PlayerLedgerEntry> = new Map();
+  public totalHandsPlayed: number = 0;
+  public biggestPotSeen: number = 0;
   public engine: PokerEngine;
   public createdAt: number;
   public chatMessages: ChatMessage[] = [];
@@ -121,6 +127,35 @@ export class Room {
     };
 
     this.players.set(id, player);
+
+    // Track or update Player Ledger Entry
+    const effectiveBuyIn = internal.chips;
+    const existingLedger = this.ledger.get(id);
+    if (!existingLedger) {
+      this.ledger.set(id, {
+        playerId: id,
+        playerName: name,
+        avatar,
+        isBot,
+        initialBuyIn: effectiveBuyIn,
+        rebuysCount: 0,
+        rebuysTotal: 0,
+        totalInvested: effectiveBuyIn,
+        currentChips: effectiveBuyIn,
+        netProfitLoss: 0,
+        status: 'ACTIVE',
+        joinedAt: Date.now(),
+        handsPlayed: 0,
+        handsWon: 0,
+      });
+    } else {
+      existingLedger.status = 'ACTIVE';
+      existingLedger.playerName = name;
+      existingLedger.avatar = avatar;
+      existingLedger.currentChips = internal.chips;
+      existingLedger.netProfitLoss = existingLedger.currentChips - existingLedger.totalInvested;
+    }
+
     return player;
   }
 
@@ -295,6 +330,18 @@ export class Room {
       this.clearBotTimer();
     }
 
+    const internal = this.engine.getPlayer(id);
+    const finalChips = internal ? internal.chips : p.chips;
+
+    // Permanently record final state in Room Ledger
+    const entry = this.ledger.get(id);
+    if (entry) {
+      entry.currentChips = finalChips;
+      entry.netProfitLoss = finalChips - entry.totalInvested;
+      entry.status = 'LEFT';
+      entry.leftAt = Date.now();
+    }
+
     this.engine.removePlayer(id);
     this.players.delete(id);
 
@@ -449,6 +496,39 @@ export class Room {
       );
     }
 
+    this.totalHandsPlayed += 1;
+    if (state.pot > this.biggestPotSeen) {
+      this.biggestPotSeen = state.pot;
+    }
+
+    // Sync chip counts & profit/loss in ledger
+    const winnerIds = new Set(state.lastHandResult?.winners.map((w) => w.playerId) || []);
+    for (const [pId, entry] of this.ledger.entries()) {
+      const internal = this.engine.getPlayer(pId);
+      if (internal && entry.status !== 'LEFT') {
+        entry.currentChips = internal.chips;
+        entry.netProfitLoss = internal.chips - entry.totalInvested;
+        if (internal.chips <= 0) {
+          entry.status = 'BUSTED';
+        } else {
+          entry.status = 'ACTIVE';
+        }
+      }
+    }
+
+    // Update hands played and won for active participants
+    for (const p of this.engine.getPlayers()) {
+      if (p) {
+        const entry = this.ledger.get(p.id);
+        if (entry) {
+          entry.handsPlayed += 1;
+          if (winnerIds.has(p.id)) {
+            entry.handsWon += 1;
+          }
+        }
+      }
+    }
+
     this.nextHandReadyPlayers.clear();
 
     // Check if any bot is bust (0 chips) and auto-rebuy
@@ -494,36 +574,114 @@ export class Room {
     }
   }
 
-  public rebuyPlayer(playerId: string, amount?: number): boolean {
-    const defaultAmount = this.config.startingChips || 10000;
-    const finalAmount = amount && amount > 0 ? amount : defaultAmount;
+  public rebuyPlayer(
+    playerId: string,
+    amount?: number
+  ): { success: boolean; reason?: string } {
     const player = this.players.get(playerId);
-    if (!player) return false;
+    if (!player) {
+      return { success: false, reason: 'Player not found in room.' };
+    }
+
+    const internalPlayer = this.engine.getPlayer(playerId);
+    const currentChips = internalPlayer ? internalPlayer.chips : player.chips;
+
+    // LOOPHOLE CHECK 1: Table stakes rule - never allow mid-hand top-up if player actively holds chips and is in hand
+    if (this.engine.isHandInProgress()) {
+      if (currentChips > 0 && internalPlayer && !internalPlayer.hasFolded) {
+        return {
+          success: false,
+          reason: 'Cannot rebuy while a hand is in progress! Please wait until the hand completes.',
+        };
+      }
+    }
+
+    const defaultAmount = this.config.startingChips || 100000;
+    const finalAmount = amount && amount > 0 ? amount : defaultAmount;
+
+    if (finalAmount < 100) {
+      return {
+        success: false,
+        reason: 'Minimum rebuy amount is ₹100.',
+      };
+    }
+
+    if (finalAmount > 50000000) {
+      return {
+        success: false,
+        reason: 'Maximum rebuy limit is ₹5,00,00,000.',
+      };
+    }
 
     const added = this.engine.addChips(playerId, finalAmount);
     if (added) {
       player.chips = this.engine.getPlayer(playerId)?.chips ?? (player.chips + finalAmount);
-
-      // If waiting at HAND_COMPLETE and now >= 2 players have chips, schedule auto-deal
-      const activeWithChips = this.engine.getPlayers().filter((p) => p !== null && p.chips > 0);
-      if (
-        activeWithChips.length >= 2 &&
-        this.engine.getPhase() === 'HAND_COMPLETE' &&
-        !this.nextHandTimerHandle
-      ) {
-        this.nextHandTimerHandle = setTimeout(() => {
-          this.nextHandTimerHandle = null;
-          if (this.engine.getPhase() === 'HAND_COMPLETE') {
-            const res = this.startNextHand();
-            if (res.success && this.onStateChanged) {
-              this.onStateChanged();
-            }
-          }
-        }, 3000);
+      // If a hand is currently in progress, mark player folded for the active hand so they aren't prompted to bet
+      if (this.engine.isHandInProgress() && internalPlayer) {
+        internalPlayer.hasFolded = true;
       }
-      return true;
+
+      // Update Ledger entry
+      let entry = this.ledger.get(playerId);
+      if (!entry) {
+        entry = {
+          playerId,
+          playerName: player.name,
+          avatar: player.avatar,
+          isBot: player.isBot,
+          initialBuyIn: defaultAmount,
+          rebuysCount: 0,
+          rebuysTotal: 0,
+          totalInvested: defaultAmount,
+          currentChips: player.chips,
+          netProfitLoss: 0,
+          status: 'ACTIVE',
+          joinedAt: Date.now(),
+          handsPlayed: 0,
+          handsWon: 0,
+        };
+        this.ledger.set(playerId, entry);
+      }
+
+      entry.rebuysCount += 1;
+      entry.rebuysTotal += finalAmount;
+      entry.totalInvested = entry.initialBuyIn + entry.rebuysTotal;
+      entry.currentChips = player.chips;
+      entry.netProfitLoss = entry.currentChips - entry.totalInvested;
+      entry.status = 'ACTIVE';
+
+      if (this.onStateChanged) {
+        this.onStateChanged();
+      }
+
+      // If waiting at HAND_COMPLETE or WAITING_FOR_PLAYERS and now >= 2 players have chips, schedule auto-deal
+      const activeWithChips = this.engine.getPlayers().filter((p) => p !== null && p.chips > 0);
+      if (activeWithChips.length >= 2 && !this.nextHandTimerHandle) {
+        if (this.engine.getPhase() === 'HAND_COMPLETE') {
+          this.nextHandTimerHandle = setTimeout(() => {
+            this.nextHandTimerHandle = null;
+            if (this.engine.getPhase() === 'HAND_COMPLETE') {
+              const res = this.startNextHand();
+              if (res.success && this.onStateChanged) {
+                this.onStateChanged();
+              }
+            }
+          }, 3000);
+        } else if (this.engine.getPhase() === 'WAITING_FOR_PLAYERS') {
+          this.nextHandTimerHandle = setTimeout(() => {
+            this.nextHandTimerHandle = null;
+            if (this.engine.getPhase() === 'WAITING_FOR_PLAYERS') {
+              const res = this.startGame();
+              if (res.success && this.onStateChanged) {
+                this.onStateChanged();
+              }
+            }
+          }, 1500);
+        }
+      }
+      return { success: true };
     }
-    return false;
+    return { success: false, reason: 'Could not add chips to player.' };
   }
 
   public setPlayerNextHandReady(playerId: string, ready: boolean): boolean {
@@ -581,6 +739,42 @@ export class Room {
       };
     });
 
+    // Compute live ledger and summary
+    const ledgerEntries: PlayerLedgerEntry[] = Array.from(this.ledger.values()).map((entry) => {
+      const internal = this.engine.getPlayer(entry.playerId);
+      if (internal && entry.status !== 'LEFT') {
+        const currentChips = internal.chips;
+        const netProfitLoss = currentChips - entry.totalInvested;
+        return {
+          ...entry,
+          currentChips,
+          netProfitLoss,
+          status: (currentChips <= 0 ? 'BUSTED' : 'ACTIVE') as PlayerLedgerStatus,
+        };
+      }
+      return { ...entry };
+    });
+
+    const totalBuyIns = ledgerEntries.reduce((sum, e) => sum + e.totalInvested, 0);
+    const totalChipsInPlay = ledgerEntries
+      .filter((e) => e.status !== 'LEFT')
+      .reduce((sum, e) => sum + e.currentChips, 0);
+    const totalCashOuts = ledgerEntries
+      .filter((e) => e.status === 'LEFT')
+      .reduce((sum, e) => sum + e.currentChips, 0);
+
+    const currentPot = this.engine.getPot();
+
+    const ledgerSummary: RoomLedgerSummary = {
+      totalBuyIns,
+      totalChipsInPlay,
+      currentPot,
+      totalCashOuts,
+      discrepancy: (totalChipsInPlay + currentPot + totalCashOuts) - totalBuyIns,
+      totalHands: this.totalHandsPlayed || this.engine.getHandNumber(),
+      biggestPot: this.biggestPotSeen,
+    };
+
     return {
       code: this.code,
       status: this.engine.isHandInProgress() ? 'PLAYING' : 'LOBBY',
@@ -589,6 +783,8 @@ export class Room {
       players: playersList,
       createdAt: this.createdAt,
       nextHandReadyPlayerIds: Array.from(this.nextHandReadyPlayers),
+      ledger: ledgerEntries,
+      ledgerSummary,
     };
   }
 

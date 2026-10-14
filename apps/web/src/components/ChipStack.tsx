@@ -1,5 +1,6 @@
 import React from 'react';
-import { formatRupee, VIRTUAL_CURRENCY_SYMBOL } from '@poker/shared';
+import { formatRupee } from '@poker/shared';
+import { CasinoChipStack3D, type ChipColor } from './CasinoChip3D.js';
 
 interface ChipStackProps {
   amount: number;
@@ -11,6 +12,15 @@ export function formatChips(val: number): string {
   return formatRupee(val);
 }
 
+function getChipColor(amount: number): ChipColor {
+  if (amount >= 5000) return 'gold';
+  if (amount >= 1000) return 'black';
+  if (amount >= 500) return 'blue';
+  if (amount >= 100) return 'green';
+  if (amount >= 25) return 'red';
+  return 'white';
+}
+
 export const ChipStack: React.FC<ChipStackProps> = ({
   amount,
   size = 'md',
@@ -18,31 +28,32 @@ export const ChipStack: React.FC<ChipStackProps> = ({
 }) => {
   if (amount <= 0) return null;
 
-  // Determine chip edge colors
-  let chipColor = 'from-blue-600 to-blue-800 border-blue-400';
-  if (amount >= 10000) chipColor = 'from-amber-500 to-yellow-600 border-yellow-300';
-  else if (amount >= 5000) chipColor = 'from-purple-600 to-purple-800 border-purple-400';
-  else if (amount >= 1000) chipColor = 'from-zinc-800 to-zinc-950 border-zinc-500';
-  else if (amount >= 100) chipColor = 'from-emerald-600 to-emerald-800 border-emerald-400';
-  else if (amount >= 50) chipColor = 'from-rose-600 to-rose-800 border-rose-400';
-
-  const chipSize = size === 'xs' ? 'w-3 h-3 text-[7px]' : size === 'sm' ? 'w-4 h-4 text-[9px]' : 'w-5 h-5 text-[10px]';
+  const chipColor = getChipColor(amount);
+  const chipDiameter = size === 'xs' ? 16 : size === 'sm' ? 20 : 24;
+  const stackCount = amount >= 2000 ? 3 : amount >= 500 ? 2 : 1;
 
   return (
-    <div className={`inline-flex items-center gap-1 bg-black/70 backdrop-blur-md rounded-full border border-amber-500/30 shadow-chip ${
-      size === 'xs' ? 'px-1.5 py-0' : 'px-2 py-0.5'
-    }`}>
-      <div className="relative flex items-center justify-center">
-        <div
-          className={`${chipSize} rounded-full bg-gradient-to-tr ${chipColor} border shadow-inner flex items-center justify-center font-black text-white`}
-        >
-          {VIRTUAL_CURRENCY_SYMBOL}
-        </div>
-      </div>
+    <div
+      className={`inline-flex items-center gap-1.5 bg-gradient-to-r from-zinc-950/95 via-black/90 to-zinc-950/95 backdrop-blur-md rounded-full border border-amber-500/40 shadow-[0_3px_12px_rgba(0,0,0,0.7),0_0_8px_rgba(245,158,11,0.15)] transition-transform hover:scale-105 select-none ${
+        size === 'xs' ? 'px-1.5 py-0.5' : size === 'sm' ? 'px-2 py-0.5' : 'px-2.5 py-1'
+      }`}
+    >
+      {/* 3D Authentic Clay Casino Chip Stack (Image 2 design) */}
+      <CasinoChipStack3D
+        color={chipColor}
+        count={stackCount}
+        sizePx={chipDiameter}
+        label="₹"
+        className="shrink-0"
+      />
+
+      {/* Amount Label */}
       {showLabel && (
-        <span className={`font-mono font-bold text-amber-200 tracking-tight ${
-          size === 'xs' ? 'text-[10px]' : 'text-xs'
-        }`}>
+        <span
+          className={`font-mono font-black text-amber-200 tracking-tight drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)] ${
+            size === 'xs' ? 'text-[10px]' : size === 'sm' ? 'text-xs' : 'text-xs sm:text-sm'
+          }`}
+        >
           {formatRupee(amount)}
         </span>
       )}

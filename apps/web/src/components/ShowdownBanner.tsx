@@ -153,16 +153,23 @@ export const ShowdownBanner: React.FC<ShowdownBannerProps> = ({
               )}
             </button>
 
-            {/* Rebuy or Next Hand action */}
-            {amOut && onRebuy ? (
+            {/* Rebuy or Reload chips between hands */}
+            {onRebuy && (
               <button
                 onClick={onRebuy}
-                className="px-3 py-1.5 bg-gradient-to-r from-amber-500 to-yellow-500 text-zinc-950 font-black text-xs uppercase tracking-wider rounded-xl shadow transition active:scale-95 flex items-center gap-1"
+                className={`px-3 py-1.5 rounded-xl font-black text-xs uppercase tracking-wider shadow transition active:scale-95 flex items-center gap-1 ${
+                  amOut
+                    ? 'bg-gradient-to-r from-amber-500 to-yellow-500 text-zinc-950 animate-pulse ring-2 ring-amber-400/50'
+                    : 'bg-zinc-800 hover:bg-zinc-700 text-amber-300 border border-zinc-700'
+                }`}
+                title="Top-Up or Rebuy chips for the next hand"
               >
-                <Coins className="w-3.5 h-3.5" />
-                <span>Rebuy</span>
+                <Coins className="w-3.5 h-3.5 text-amber-400" />
+                <span>{amOut ? 'Rebuy' : 'Reload'}</span>
               </button>
-            ) : isHost && onDealNext ? (
+            )}
+
+            {isHost && onDealNext ? (
               <button
                 onClick={onDealNext}
                 className="px-3 py-1.5 bg-amber-500 hover:bg-amber-400 text-zinc-950 font-black text-xs uppercase tracking-wider rounded-xl shadow transition active:scale-95 flex items-center gap-1"

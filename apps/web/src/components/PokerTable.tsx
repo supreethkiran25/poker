@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import type {
   GamePublicState,
   RoomPublicState,
@@ -22,6 +22,19 @@ import { GameSummaryModal } from './GameSummaryModal.js';
 import { MobileTableMenu } from './MobileTableMenu.js';
 import { ChipStack } from './ChipStack.js';
 import { AddBotModal } from './AddBotModal.js';
+import { PotCoinsVisual } from './PotCoinsVisual.js';
+import { soundManager } from '../audio/sound-manager.js';
+import { calculateHandEquity } from '../utils/handEquityCalculator.js';
+import { ChipsFlyAnimation, type WinnerFlyTarget } from './ChipsFlyAnimation.js';
+import {
+  useAccountWallet,
+  addAccountCoins,
+  deductAccountCoins,
+  setAccountCoins,
+  getAccountCoins,
+} from '../utils/accountWallet.js';
+import { ZeroBalanceReloadModal } from './ZeroBalanceReloadModal.js';
+import { GoldCoin3D } from './CasinoChip3D.js';
 import type { TableAlert } from '../hooks/useSocket.js';
 import {
   Mic,
@@ -41,6 +54,8 @@ import {
   Share2,
   Menu,
   Bot,
+  Receipt,
+  Lock,
 } from 'lucide-react';
 
 interface PokerTableProps {
@@ -89,20 +104,27 @@ export const PokerTable: React.FC<PokerTableProps> = ({
   onClearBots,
 }) => {
   const [showSummary, setShowSummary] = useState(false);
+  const [summaryMode, setSummaryMode] = useState<'IN_GAME' | 'LEAVING'>('IN_GAME');
   const [showHistory, setShowHistory] = useState(false);
   const [showRules, setShowRules] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [showRebuy, setShowRebuy] = useState(false);
+  const [showZeroBalanceReload, setShowZeroBalanceReload] = useState(false);
   const [showShowdown, setShowShowdown] = useState(false);
   const [showMobileMenu, setShowMobileMenu] = useState(false);
   const [showAddBotModal, setShowAddBotModal] = useState(false);
+
+  // References to synchronize account wallet on hand complete
+  const prevHandChipsRef = React.useRef<number | null>(null);
+  const prevHandNumberRef = React.useRef<number | null>(null);
+
   const [secondsRemaining, setSecondsRemaining] = useState<number | null>(null);
   const [layoutMode, setLayoutMode] = useState<'mobile' | 'tablet' | 'mobile-landscape' | 'desktop'>(() => {
     const w = typeof window !== 'undefined' ? window.innerWidth : 1200;
     const h = typeof window !== 'undefined' ? window.innerHeight : 800;
     const ratio = w / h;
-    if (ratio < 1.28) {
-      return w < 640 ? 'mobile' : 'tablet';
+    if (w < 600 || ratio < 1.05) {
+      return w < 600 ? 'mobile' : 'tablet';
     }
     if (h <= 520) {
       return 'mobile-landscape';
@@ -155,8 +177,8 @@ export const PokerTable: React.FC<PokerTableProps> = ({
       const w = window.innerWidth;
       const h = window.innerHeight;
       const ratio = w / h;
-      if (ratio < 1.28) {
-        setLayoutMode(w < 640 ? 'mobile' : 'tablet');
+      if (w < 600 || ratio < 1.05) {
+        setLayoutMode(w < 600 ? 'mobile' : 'tablet');
       } else if (h <= 520) {
         setLayoutMode('mobile-landscape');
       } else {
@@ -189,6 +211,21 @@ export const PokerTable: React.FC<PokerTableProps> = ({
   const winningCards = primaryWinner?.winningCards || [];
   const totalWonPot = winners.reduce((sum, w) => sum + (w.amount || 0), 0) || gameState.pot;
   const isSplitPot = winners.length > 1;
+
+  // Account wallet balance
+  const { coins: walletCoins } = useAccountWallet();
+
+  // Local Player's won amount (for celebration payout)
+  const myWonEntry = winners.find((w) => w.playerId === myPlayerId);
+  const myWonAmount = myWonEntry ? (myWonEntry.amount || totalWonPot) : 0;
+
+  // Real-time Win Percentage (Private: Only visible to local player on their device)
+  const myWinEquity = React.useMemo(() => {
+    if (!me?.holeCards || me.holeCards.length < 2 || me.hasFolded) return null;
+    const activeCount = gameState.players.filter((p) => !p.hasFolded && p.chips >= 0).length;
+    return calculateHandEquity(me.holeCards, gameState.communityCards, activeCount);
+  }, [me?.holeCards, me?.hasFolded, gameState.communityCards, gameState.players]);
+
 
   // Best clean hand rank text for badge (e.g. "Full House")
   const winningRankBadgeText = React.useMemo(() => {
@@ -255,12 +292,19 @@ export const PokerTable: React.FC<PokerTableProps> = ({
     setShowShowdown(false);
   };
 
-  // Auto prompt rebuy if player has 0 chips during active play (not during HAND_COMPLETE where ShowdownBanner has native rebuy)
+  // Check if hand is in progress and if player is eligible for rebuy
+  const isHandInProgress =
+    gameState.phase !== 'HAND_COMPLETE' &&
+    gameState.phase !== 'WAITING_FOR_PLAYERS' &&
+    gameState.phase !== 'STARTING';
+  const canRebuy = (me?.chips ?? 0) <= 0 || !isHandInProgress;
+
+  // Auto prompt rebuy if player has 0 chips
   useEffect(() => {
-    if (me && me.chips === 0 && gameState.phase !== 'HAND_COMPLETE') {
+    if (me && me.chips === 0 && (gameState.phase === 'HAND_COMPLETE' || !isHandInProgress)) {
       setShowRebuy(true);
     }
-  }, [me?.chips, gameState.phase]);
+  }, [me?.chips, gameState.phase, isHandInProgress]);
 
   // Turn timer countdown
   useEffect(() => {
@@ -304,10 +348,10 @@ export const PokerTable: React.FC<PokerTableProps> = ({
 
     // Widen oval radii when many players to spread them out more
     const rx = isPortrait
-      ? (isTablet ? 42 : (isCrowded ? 43 : 39))
+      ? (isTablet ? 42 : (isCrowded ? 43 : 40))
       : (isMobileLandscape ? 44 : 44);
     const ry = isPortrait
-      ? (isTablet ? 42 : (isCrowded ? 42 : 38))
+      ? (isTablet ? 42 : (isCrowded ? 40 : 38))
       : (isMobileLandscape ? 36 : 38);
     const left = 50 + rx * Math.cos(angleRad);
     const top = 50 + ry * Math.sin(angleRad);
@@ -321,12 +365,132 @@ export const PokerTable: React.FC<PokerTableProps> = ({
     };
   };
 
+  // ── Directional Winner Trajectories for 3D Flying Coins ──
+  const winnerFlyTargets: WinnerFlyTarget[] = React.useMemo(() => {
+    if (!isHandComplete || winners.length === 0) return [];
+    return winners.map((w) => {
+      const isMe = w.playerId === myPlayerId;
+      if (isMe) {
+        return {
+          playerId: w.playerId,
+          playerName: me?.name || 'You',
+          isMe: true,
+          xPercent: 50,
+          yPercent: isPortrait ? 89 : 88,
+          amount: w.amount || totalWonPot,
+        };
+      }
+      const opp = opponents.find((p) => p.id === w.playerId);
+      if (opp) {
+        const style = getOpponentStyle(opp.seatIndex);
+        const x = parseFloat(String(style.left)) || 50;
+        const y = parseFloat(String(style.top)) || 15;
+        return {
+          playerId: w.playerId,
+          playerName: opp.name,
+          isMe: false,
+          xPercent: x,
+          yPercent: y,
+          amount: w.amount || totalWonPot,
+        };
+      }
+      return {
+        playerId: w.playerId,
+        playerName: 'Opponent',
+        isMe: false,
+        xPercent: 50,
+        yPercent: 15,
+        amount: w.amount || totalWonPot,
+      };
+    });
+  }, [isHandComplete, winners, myPlayerId, isPortrait, me?.name, opponents, totalWonPot]);
+
+  // ── Synchronize Account Wallet on Hand Complete (Net Wins / Net Losses) ──
+  useEffect(() => {
+    if (!me) return;
+
+    // Initialize baseline stack on first mount or new hand
+    if (prevHandChipsRef.current === null) {
+      prevHandChipsRef.current = me.chips;
+      prevHandNumberRef.current = gameState.handNumber;
+      return;
+    }
+
+    if (gameState.phase === 'HAND_COMPLETE' && gameState.handNumber !== prevHandNumberRef.current) {
+      prevHandNumberRef.current = gameState.handNumber;
+      const previousChips = prevHandChipsRef.current;
+      const currentChips = me.chips;
+      const delta = currentChips - previousChips;
+
+      if (delta > 0) {
+        addAccountCoins(delta);
+      } else if (delta < 0) {
+        deductAccountCoins(Math.abs(delta));
+      }
+
+      prevHandChipsRef.current = currentChips;
+
+      // Anti-loophole: Prompt for reload ONLY when BOTH table chips and account wallet hit 0
+      const currentWallet = getAccountCoins();
+      if (currentChips <= 0 && currentWallet <= 0) {
+        setShowZeroBalanceReload(true);
+      }
+    } else if (gameState.phase !== 'HAND_COMPLETE') {
+      if (prevHandNumberRef.current !== gameState.handNumber) {
+        prevHandChipsRef.current = me.chips;
+        prevHandNumberRef.current = gameState.handNumber;
+      }
+    }
+  }, [gameState.phase, gameState.handNumber, me?.chips]);
+
   const handleRebuySubmit = (amount: number) => {
     setShowRebuy(false);
-    if (onRebuyChips) {
+    // Table stakes rule: only block mid-hand top-up if player has > 0 chips and is actively participating
+    if (isHandInProgress && (me?.chips ?? 0) > 0 && !me?.hasFolded) return;
+    if (onRebuyChips && amount > 0) {
+      // Deduct rebuy amount from account wallet
+      deductAccountCoins(amount);
+      if (prevHandChipsRef.current !== null) {
+        prevHandChipsRef.current += amount;
+      }
+      soundManager.playCallChips(amount);
       onRebuyChips(amount);
     }
   };
+
+  // Keep a fresh ref to the player's chip stack
+  const meChipsRef = useRef<number>(me?.chips ?? 0);
+  useEffect(() => {
+    if (me && typeof me.chips === 'number') {
+      meChipsRef.current = me.chips;
+    }
+  }, [me?.chips]);
+
+  // When player exits from the table, save the exact chip count they had while leaving into the credit section
+  const handleLeaveTable = useCallback(() => {
+    const finalChips = typeof me?.chips === 'number' ? me.chips : meChipsRef.current;
+    if (typeof finalChips === 'number') {
+      setAccountCoins(finalChips);
+    }
+    onLeaveRoom();
+  }, [me?.chips, onLeaveRoom]);
+
+  // Also guarantee exact chips are saved to credit section on tab close, refresh, or component unmount
+  useEffect(() => {
+    const handleBeforeUnload = () => {
+      if (typeof meChipsRef.current === 'number') {
+        setAccountCoins(meChipsRef.current);
+      }
+    };
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+      if (typeof meChipsRef.current === 'number') {
+        setAccountCoins(meChipsRef.current);
+      }
+    };
+  }, []);
+
 
   return (
     <div
@@ -348,9 +512,12 @@ export const PokerTable: React.FC<PokerTableProps> = ({
         {/* Left: Screen 5 Breadcrumb `< Hand #124578` + Table code */}
         <div className="flex items-center gap-2 min-w-0">
           <button
-            onClick={onLeaveRoom}
+            onClick={() => {
+              setSummaryMode('LEAVING');
+              setShowSummary(true);
+            }}
             className="flex items-center gap-1 text-xs font-mono font-bold text-zinc-300 hover:text-white transition p-1 hover:bg-zinc-900 rounded-lg"
-            title="Back to Lobby"
+            title="Leave Table & Settlement Slip"
           >
             <ChevronLeft className="w-4 h-4 text-amber-400" />
             <span>Hand #{gameState.handNumber}</span>
@@ -359,11 +526,11 @@ export const PokerTable: React.FC<PokerTableProps> = ({
           {/* Always-visible Clickable Room Code & Invite Pill */}
           <button
             onClick={handleShareInvite}
-            className="flex items-center gap-1.5 px-2.5 py-1 bg-gradient-to-r from-amber-500/15 via-amber-600/10 to-transparent hover:from-amber-500/25 hover:to-amber-600/20 active:scale-95 rounded-lg border border-amber-500/40 text-[11px] font-mono text-amber-300 transition flex-shrink-0 shadow-sm"
+            className="flex items-center gap-1.5 px-2 py-1 bg-gradient-to-r from-amber-500/15 via-amber-600/10 to-transparent hover:from-amber-500/25 hover:to-amber-600/20 active:scale-95 rounded-lg border border-amber-500/40 text-[11px] font-mono text-amber-300 transition flex-shrink-0 shadow-sm"
             title="Click to copy invite link / share room code"
           >
-            <span className="text-amber-400 font-bold">♠</span>
-            <span className="font-bold tracking-wider">{roomState.code}</span>
+            <span className="text-[9px] font-mono uppercase font-black px-1 py-0.5 rounded bg-amber-500/20 text-amber-300">ROOM</span>
+            <span className="font-bold tracking-wider text-amber-200">{roomState.code}</span>
             {copiedCode ? (
               <Check className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
             ) : (
@@ -396,15 +563,39 @@ export const PokerTable: React.FC<PokerTableProps> = ({
             <span className="hidden md:inline">{copiedCode ? 'COPIED' : 'INVITE'}</span>
           </button>
 
-          {/* Quick Rebuy Button */}
-          <button
-            onClick={() => setShowRebuy(true)}
-            className="p-2 bg-zinc-900 hover:bg-zinc-800 text-amber-400 rounded-xl border border-amber-500/30 transition flex items-center gap-1 text-xs font-mono font-bold"
-            title="Rebuy Chips"
+          {/* Quick Rebuy Button - Strictly disabled mid-hand or when chips > 0 */}
+          {canRebuy ? (
+            <button
+              onClick={() => setShowRebuy(true)}
+              className="p-2 bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 rounded-xl border border-amber-500/50 transition flex items-center gap-1.5 text-xs font-mono font-bold animate-pulse shadow-sm"
+              title="Rebuy Chips (Busted - ₹0 chips)"
+            >
+              <Coins className="w-4 h-4 text-amber-400" />
+              <span className="hidden sm:inline">REBUY</span>
+            </button>
+          ) : (
+            <button
+              disabled
+              className="p-2 bg-zinc-900/60 text-zinc-600 rounded-xl border border-zinc-800/60 cursor-not-allowed flex items-center gap-1.5 text-xs font-mono"
+              title={
+                isHandInProgress
+                  ? "Cannot rebuy while hand is in progress"
+                  : "Rebuy only allowed when chips reach ₹0"
+              }
+            >
+              <Lock className="w-3.5 h-3.5 text-zinc-600" />
+              <span className="hidden sm:inline">REBUY</span>
+            </button>
+          )}
+
+          {/* User Account Wallet Balance (Desktop) */}
+          <div
+            className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-zinc-900/90 border border-amber-500/40 text-amber-300 shadow-sm"
+            title="Your Total Account Virtual Coins"
           >
-            <Coins className="w-4 h-4 text-amber-400" />
-            <span className="hidden sm:inline">REBUY</span>
-          </button>
+            <GoldCoin3D sizePx={18} tiltDeg={-8} />
+            <span className="text-xs font-mono font-bold">{formatRupee(walletCoins)}</span>
+          </div>
 
           {/* Add Bots Button */}
           <button
@@ -447,13 +638,17 @@ export const PokerTable: React.FC<PokerTableProps> = ({
             )}
           </button>
 
-          {/* Session Summary (Screen 10) */}
+          {/* Table Ledger & Match Summary */}
           <button
-            onClick={() => setShowSummary(true)}
-            className="p-2 bg-zinc-900 hover:bg-zinc-800 text-zinc-300 rounded-xl border border-zinc-800 transition"
-            title="Session Summary"
+            onClick={() => {
+              setSummaryMode('IN_GAME');
+              setShowSummary(true);
+            }}
+            className="p-2 bg-zinc-900 hover:bg-zinc-800 text-amber-400 rounded-xl border border-zinc-800 hover:border-amber-500/40 transition flex items-center gap-1.5 text-xs font-mono font-bold"
+            title="Table Ledger & Settlement Summary"
           >
-            <Trophy className="w-4 h-4 text-amber-400" />
+            <Receipt className="w-4 h-4 text-amber-400" />
+            <span className="hidden xl:inline text-zinc-300">LEDGER</span>
           </button>
 
           {/* Hand History */}
@@ -474,23 +669,35 @@ export const PokerTable: React.FC<PokerTableProps> = ({
             <Settings className="w-4 h-4 text-zinc-300" />
           </button>
 
-          {/* Leave Table */}
+          {/* Leave Table (opens settlement summary confirmation) */}
           <button
-            onClick={onLeaveRoom}
-            className="p-2 bg-zinc-900 hover:bg-zinc-800 text-zinc-400 hover:text-rose-400 rounded-xl border border-zinc-800 transition"
-            title="Leave Table"
+            onClick={() => {
+              setSummaryMode('LEAVING');
+              setShowSummary(true);
+            }}
+            className="p-2 bg-zinc-900 hover:bg-rose-950/40 text-zinc-400 hover:text-rose-400 rounded-xl border border-zinc-800 hover:border-rose-800/50 transition flex items-center gap-1"
+            title="Leave Table & Cash Out"
           >
             <LogOut className="w-4 h-4" />
           </button>
         </div>
 
-        {/* Right Mobile Toolbar (Clean, Uncluttered: Mic, Chat, Menu) */}
-        <div className={`${isMobileLandscape ? 'flex' : 'flex sm:hidden'} items-center gap-1.5 flex-shrink-0`}>
+        {/* Right Mobile Toolbar (Clean, Uncluttered: Wallet, Mic, Chat, Menu) */}
+        <div className={`${isMobileLandscape ? 'flex' : 'flex sm:hidden'} items-center gap-1 sm:gap-1.5 flex-shrink-0`}>
+          {/* Mobile User Account Wallet Balance */}
+          <div
+            className="flex items-center gap-1 px-2 py-1 rounded-lg bg-zinc-900/90 border border-amber-500/40 text-amber-300 shadow-sm"
+            title="Your Total Account Virtual Coins"
+          >
+            <GoldCoin3D sizePx={14} tiltDeg={-8} />
+            <span className="text-[10px] font-mono font-bold">{formatRupee(walletCoins)}</span>
+          </div>
+
           {/* Quick Voice Mic */}
           {onToggleMute && (
             <button
               onClick={onToggleMute}
-              className={`p-2 rounded-xl border transition flex items-center ${
+              className={`p-1.5 sm:p-2 rounded-xl border transition flex items-center ${
                 isVoiceActive && !isMuted
                   ? 'bg-emerald-500/20 border-emerald-500/60 text-emerald-300 ring-2 ring-emerald-500/30'
                   : 'bg-zinc-900 border-zinc-800 text-zinc-400'
@@ -508,7 +715,7 @@ export const PokerTable: React.FC<PokerTableProps> = ({
           {/* Chat with Unread Badge */}
           <button
             onClick={onOpenChat}
-            className="p-2 bg-zinc-900 text-zinc-300 rounded-xl border border-zinc-800 transition relative active:scale-95"
+            className="p-1.5 sm:p-2 bg-zinc-900 text-zinc-300 rounded-xl border border-zinc-800 transition relative active:scale-95"
             title="Chat"
           >
             <MessageSquare className="w-4 h-4 text-amber-400" />
@@ -520,46 +727,48 @@ export const PokerTable: React.FC<PokerTableProps> = ({
           {/* Sleek Mobile Menu Button */}
           <button
             onClick={() => setShowMobileMenu(true)}
-            className="px-2.5 py-2 bg-zinc-900 hover:bg-zinc-800 text-amber-300 rounded-xl border border-amber-500/40 transition active:scale-95 flex items-center gap-1.5 shadow-sm"
+            className="px-2 sm:px-2.5 py-1.5 sm:py-2 bg-zinc-900 hover:bg-zinc-800 text-amber-300 rounded-xl border border-amber-500/40 transition active:scale-95 flex items-center gap-1 shadow-sm"
             title="Table Menu"
           >
             <Menu className="w-4 h-4 text-amber-400" />
-            <span className="text-[11px] font-bold text-amber-300 font-mono">Menu</span>
+            <span className="text-[10px] sm:text-[11px] font-bold text-amber-300 font-mono">Menu</span>
           </button>
         </div>
       </header>
 
       {/* ══ TABLE ARENA (Portrait Oval on Mobile, Landscape on Desktop) ══ */}
-      <main className="flex-1 flex items-center justify-center p-2 min-h-0 relative poker-arena-bg">
+      <main className="flex-1 flex items-center justify-center px-1 sm:px-2 py-0.5 sm:py-2 min-h-0 relative poker-arena-bg w-full overflow-hidden">
         <div
           className="poker-table-outer-rail relative transition-all duration-300"
           style={
             isPortrait
               ? isTablet
                 ? {
-                    width: 'min(92vw, 680px)',
-                    height: 'min(70vh, 760px)',
-                    maxHeight: 'calc(100dvh - 180px)',
-                    borderRadius: '190px',
+                    width: 'min(96vw, 720px)',
+                    height: '100%',
+                    maxHeight: 'calc(100% - 4px)',
+                    borderRadius: '160px',
                   }
                 : {
-                    width: 'min(96vw, 440px)',
-                    height: 'calc(100dvh - 175px)',
-                    maxHeight: '620px',
-                    borderRadius: '140px',
+                    width: '100%',
+                    maxWidth: '480px',
+                    height: '100%',
+                    maxHeight: '100%',
+                    borderRadius: '110px',
                   }
               : isMobileLandscape
               ? {
-                  width: 'min(98vw, calc((100dvh - 84px) * 2.15))',
-                  maxHeight: 'calc(100dvh - 84px)',
-                  aspectRatio: '2.15 / 1',
+                  width: 'min(98vw, calc((100dvh - 76px) * 2.2))',
+                  height: '100%',
+                  maxHeight: 'calc(100dvh - 76px)',
+                  aspectRatio: '2.2 / 1',
                   borderRadius: '9999px',
                 }
               : {
                   width: '100%',
-                  aspectRatio: '1.82 / 1',
-                  maxWidth: 'min(98vw, calc((100dvh - 130px) * 1.82))',
-                  maxHeight: 'calc(100dvh - 130px)',
+                  aspectRatio: '1.95 / 1',
+                  maxWidth: 'min(96vw, calc((100dvh - 148px) * 1.95))',
+                  maxHeight: 'calc(100dvh - 148px)',
                   borderRadius: '9999px',
                 }
           }
@@ -568,14 +777,25 @@ export const PokerTable: React.FC<PokerTableProps> = ({
           <div
             className="poker-felt-surface w-full h-full relative"
             style={{
-              borderRadius: isPortrait ? (isTablet ? '175px' : '126px') : '9999px',
+              borderRadius: isPortrait ? (isTablet ? '150px' : '102px') : '9999px',
             }}
           >
+            {/* ── Visual 3D Chips Out Fly Animation on Winner Payout ── */}
+            <ChipsFlyAnimation
+              isHandComplete={isHandComplete}
+              isMeWinner={isMeWinner}
+              myWinAmount={myWonAmount}
+              winnerPlayerName={winnerPlayer?.name}
+              totalPot={totalWonPot}
+              myPlayerId={myPlayerId}
+              winnerTargets={winnerFlyTargets}
+            />
+
             {/* Racetrack betting line */}
             <div
               className="poker-betting-line"
               style={{
-                borderRadius: isPortrait ? (isTablet ? '160px' : '110px') : '9999px',
+                borderRadius: isPortrait ? (isTablet ? '135px' : '88px') : '9999px',
               }}
             />
 
@@ -658,16 +878,26 @@ export const PokerTable: React.FC<PokerTableProps> = ({
 
             {/* ── Table Center: Community Cards + Showdown Results (or Pot during active play) ── */}
             <div
-              className="absolute z-20 flex flex-col items-center gap-1.5 sm:gap-2 pointer-events-auto"
+              className="absolute z-20 flex flex-col items-center gap-1 sm:gap-1.5 pointer-events-auto"
               style={{
                 left: '50%',
-                top: isPortrait ? (isTablet ? '42%' : (isCrowded ? '42%' : '44%')) : '43%',
+                top: isPortrait ? (isTablet ? '35%' : '34%') : '30%',
                 transform: 'translate(-50%, -50%)',
               }}
             >
-              {/* When Hand Complete: Sleek Unified Showdown Pill (Winner + Pot + Hand Rank) */}
+              {/* When Hand Complete: 3D won chips + Sleek Unified Showdown Pill (Winner + Pot + Hand Rank) */}
               {isHandComplete ? (
-                <div className="flex items-center gap-1.5 animate-fade-in z-30 mb-1">
+                <div className="flex flex-col items-center gap-1 animate-fade-in z-30 mb-1">
+                  {totalWonPot > 0 && (
+                    <div className="scale-90 sm:scale-100 mb-[-6px]">
+                      <PotCoinsVisual
+                        pot={totalWonPot}
+                        size={isPortrait && !isTablet ? 'sm' : 'md'}
+                        showPlaque={false}
+                        isHandComplete={true}
+                      />
+                    </div>
+                  )}
                   <div className="bg-black/90 text-white px-4 sm:px-6 py-1.5 rounded-full shadow-2xl border border-amber-400/70 flex items-center gap-2 backdrop-blur-md select-none">
                     <span className="text-xs sm:text-sm font-bold text-zinc-300">
                       {isSplitPot
@@ -689,39 +919,22 @@ export const PokerTable: React.FC<PokerTableProps> = ({
                 </div>
               ) : (
                 <>
-                  {/* Luxury Casino Pot Plaque */}
-                  <div className="flex flex-col items-center gap-1 pointer-events-auto">
-                    <div className="relative group flex items-center gap-2 bg-gradient-to-r from-zinc-950/95 via-amber-950/25 to-zinc-950/95 backdrop-blur-xl px-4 py-1 rounded-full border border-amber-400/50 shadow-[0_4px_24px_rgba(0,0,0,0.8),0_0_18px_rgba(245,158,11,0.18)] transition-all">
-                      {/* Golden chip icon */}
-                      <div className="w-4 h-4 rounded-full bg-gradient-to-tr from-amber-600 via-amber-500 to-yellow-400 flex items-center justify-center text-[9px] shadow-sm border border-amber-200/60 text-zinc-950 font-black">
-                        ₹
-                      </div>
-                      <span className="text-[10px] uppercase tracking-[0.2em] text-amber-400/90 font-mono font-bold">
-                        POT
-                      </span>
-                      <span className="text-amber-500/40 font-mono text-xs">•</span>
-                      <span className="text-sm sm:text-base font-black text-amber-300 font-mono tracking-tight drop-shadow-[0_1px_4px_rgba(245,158,11,0.35)]">
-                        {formatRupee(gameState.pot)}
-                      </span>
-
-                      {/* On mobile phone view, integrate phase directly into the pot badge */}
-                      {isPortrait && !isTablet && !isHandComplete && gameState.phase !== 'WAITING_FOR_PLAYERS' && gameState.phase !== 'STARTING' && (
-                        <>
-                          <span className="text-emerald-500/50 font-mono text-xs">•</span>
-                          <span className="text-[9px] font-mono uppercase tracking-wider text-emerald-400 font-bold bg-emerald-950/60 px-1.5 py-0.5 rounded border border-emerald-500/30">
-                            {gameState.phase.replace(/_/g, ' ')}
-                          </span>
-                        </>
-                      )}
-                    </div>
+                  {/* Luxury Casino Pot with 3D Chips & Shiny Gold Coins */}
+                  <div className="flex flex-col items-center gap-0.5 pointer-events-auto">
+                    <PotCoinsVisual
+                      pot={gameState.pot}
+                      size={isPortrait && !isTablet ? 'sm' : 'md'}
+                      phase={gameState.phase}
+                      isHandComplete={isHandComplete}
+                    />
 
                     {/* Side Pots with luxury chips badge */}
                     {gameState.sidePots && gameState.sidePots.length > 1 && (
-                      <div className="flex items-center gap-1.5 flex-wrap justify-center pointer-events-auto animate-fade-in">
+                      <div className="flex items-center gap-1.5 flex-wrap justify-center pointer-events-auto animate-fade-in mt-0.5">
                         {gameState.sidePots.map((sp, idx) => (
                           <span
                             key={idx}
-                            className="text-[9px] font-mono px-2.5 py-0.5 rounded-full bg-black/80 border border-amber-500/30 text-amber-300/90 shadow-sm flex items-center gap-1"
+                            className="text-[9px] font-mono px-2 py-0.5 rounded-full bg-black/80 border border-amber-500/30 text-amber-300/90 shadow-sm flex items-center gap-1"
                           >
                             <span className="text-amber-500/60 text-[8px] font-black">{idx === 0 ? 'MAIN' : `SIDE ${idx}`}</span>
                             <span className="font-bold text-amber-200">{formatRupee(sp.amount)}</span>
@@ -741,39 +954,31 @@ export const PokerTable: React.FC<PokerTableProps> = ({
                 compact={isPortrait ? !isTablet : isMobileLandscape}
                 ultraCompact={isMobilePortrait && isCrowded}
               />
-
-              {/* Phase Badge during active play (Desktop & Tablet only, on phone it's inside Pot badge) */}
-              {(!isPortrait || isTablet) && !isMobileLandscape && !isHandComplete && gameState.phase !== 'WAITING_FOR_PLAYERS' && gameState.phase !== 'STARTING' && (
-                <div className="px-3 py-0.5 bg-gradient-to-r from-zinc-950/90 via-emerald-950/40 to-zinc-950/90 rounded-full border border-emerald-500/40 text-[9px] sm:text-[10px] font-mono uppercase tracking-[0.2em] text-emerald-400 font-bold shadow-[0_2px_10px_rgba(0,0,0,0.6),0_0_12px_rgba(16,185,129,0.15)] flex items-center gap-1.5">
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                  <span>{gameState.phase.replace(/_/g, ' ')}</span>
-                </div>
-              )}
             </div>
 
-            {/* ── Hero Active Bet Chip in Dedicated Betting Zone (Mobile Phone Portrait) ── */}
-            {me && me.currentBet > 0 && !isHandComplete && isPortrait && (
+            {/* ── Hero Active Bet Chip in Dedicated Betting Zone (between community cards and HUD) ── */}
+            {me && me.currentBet > 0 && !isHandComplete && (
               <div
                 className="absolute z-22 pointer-events-auto animate-fade-in"
                 style={{
                   left: '50%',
-                  top: isTablet ? '56%' : '61%',
+                  top: isPortrait ? (isTablet ? '48%' : '47%') : '47%',
                   transform: 'translate(-50%, -50%)',
                 }}
               >
-                <ChipStack amount={me.currentBet} size="sm" />
+                <ChipStack amount={me.currentBet} size={isPortrait ? 'xs' : 'sm'} />
               </div>
             )}
 
-            {/* ── Player's Hole Cards on the Felt (Positioned cleanly below community board) ── */}
+            {/* ── Player's Hole Cards on the Felt (Positioned cleanly right above player seat) ── */}
             {me && me.holeCards && me.holeCards.length > 0 && (
               <div
-                className={`absolute z-20 flex items-center -space-x-2 sm:-space-x-1 pointer-events-auto transition-all duration-300 ${
+                className={`absolute z-20 flex items-center -space-x-2 sm:-space-x-1.5 pointer-events-auto transition-all duration-300 ${
                   me.hasFolded ? 'opacity-40 grayscale-[60%] scale-90' : 'opacity-100'
                 } ${isMyTurn ? 'p-1 rounded-2xl ring-2 ring-amber-400/80 shadow-[0_0_24px_rgba(251,191,36,0.35)]' : ''}`}
                 style={{
                   left: '50%',
-                  top: isPortrait ? (isTablet ? '72%' : (isCrowded ? '73%' : '76%')) : (isMobileLandscape ? '72%' : '70%'),
+                  top: isPortrait ? (isTablet ? '66%' : '65%') : (isMobileLandscape ? '65%' : '67%'),
                   transform: 'translate(-50%, -50%)',
                 }}
               >
@@ -787,7 +992,7 @@ export const PokerTable: React.FC<PokerTableProps> = ({
                     <CardView
                       key={idx}
                       card={c}
-                      size={isTablet || (!isPortrait && !isMobileLandscape) ? 'lg' : (isMobilePortrait && isCrowded ? 'sm' : 'md')}
+                      size={isPortrait && !isTablet ? 'sm' : 'md'}
                       dealDelayMs={idx * 140}
                       isInteractive={!me.hasFolded}
                       isHighlighted={isWinning}
@@ -804,13 +1009,13 @@ export const PokerTable: React.FC<PokerTableProps> = ({
               </div>
             )}
 
-            {/* ── "YOU" Seat Pod at Bottom Center of Oval Rail ── */}
+            {/* ── "YOU" Seat Pod with Live Win % Bar next to Player Name ── */}
             {me && (
               <div
                 className="absolute z-25 pointer-events-auto"
                 style={{
                   left: '50%',
-                  top: isPortrait ? (isTablet ? '89%' : '89%') : (isMobileLandscape ? '87%' : '87%'),
+                  top: isPortrait ? '88%' : '88%',
                   transform: 'translate(-50%, -50%)',
                 }}
               >
@@ -822,8 +1027,8 @@ export const PokerTable: React.FC<PokerTableProps> = ({
                   bigBlindSeat={gameState.bigBlindSeat}
                   turnExpiresAt={isMyTurn ? gameState.turnExpiresAt : null}
                   turnDuration={gameState.turnDuration}
-                  compact={isMobilePortrait && isCrowded}
-                  chipPlacement={isPortrait ? 'none' : 'top'}
+                  compact={isMobilePortrait || isCrowded}
+                  chipPlacement="none"
                   isSpeaking={isVoiceActive && !isMuted}
                   isWinner={isMeWinner}
                   winningCards={winningCards}
@@ -831,19 +1036,21 @@ export const PokerTable: React.FC<PokerTableProps> = ({
                   isHandComplete={isHandComplete}
                   playerCount={totalPlayerCount}
                   isMobilePortrait={isMobilePortrait}
+                  winEquity={!isHandComplete ? myWinEquity : null}
                 />
               </div>
             )}
+
           </div>
         </div>
       </main>
 
       {/* ══ BOTTOM ACTION ZONE (Pinned cleanly with safe-area spacing) ══ */}
       <footer
-        className={`flex-shrink-0 flex flex-col items-center z-30 px-2.5 ${
-          isMobileLandscape ? 'pb-1 pt-0.5' : 'pb-2'
+        className={`flex-shrink-0 flex flex-col items-center z-30 px-2 sm:px-2.5 ${
+          isMobileLandscape ? 'pb-1 pt-0.5' : 'pb-1.5 pt-0.5'
         }`}
-        style={{ paddingBottom: 'max(6px, env(safe-area-inset-bottom, 6px))' }}
+        style={{ paddingBottom: 'max(4px, env(safe-area-inset-bottom, 4px))' }}
       >
         <div className="w-full max-w-xl">
           {/* Phase: Hand Complete - Next Hand Auto-Continue / Controls */}
@@ -941,7 +1148,7 @@ export const PokerTable: React.FC<PokerTableProps> = ({
       <RebuyModal
         startingChips={roomState.config.startingChips}
         onRebuy={handleRebuySubmit}
-        onLeave={onLeaveRoom}
+        onLeave={handleLeaveTable}
         isOpen={showRebuy}
         onClose={() => setShowRebuy(false)}
       />
@@ -979,9 +1186,14 @@ export const PokerTable: React.FC<PokerTableProps> = ({
         />
       )}
 
-      {/* ══ SESSION COMPLETE SUMMARY MODAL (Screen 10) ══ */}
+      {/* ══ SESSION COMPLETE SUMMARY / LEDGER MODAL (Screen 10) ══ */}
       {showSummary && (
         <GameSummaryModal
+          mode={summaryMode}
+          roomCode={roomState.code}
+          myPlayerId={myPlayerId}
+          ledger={roomState.ledger}
+          ledgerSummary={roomState.ledgerSummary}
           players={gameState.players.map((p) => ({
             id: p.id,
             name: p.name,
@@ -992,7 +1204,14 @@ export const PokerTable: React.FC<PokerTableProps> = ({
           totalHands={gameState.handNumber}
           biggestPot={gameState.pot}
           onClose={() => setShowSummary(false)}
-          onBackToHome={onLeaveRoom}
+          onConfirmLeave={() => {
+            setShowSummary(false);
+            handleLeaveTable();
+          }}
+          onBackToHome={() => {
+            setShowSummary(false);
+            handleLeaveTable();
+          }}
         />
       )}
 
@@ -1018,8 +1237,21 @@ export const PokerTable: React.FC<PokerTableProps> = ({
         onOpenHistory={() => setShowHistory(true)}
         onOpenRules={() => setShowRules(true)}
         onOpenSettings={() => setShowSettings(true)}
-        onLeaveRoom={onLeaveRoom}
+        onOpenLedger={() => {
+          setSummaryMode('IN_GAME');
+          setShowSummary(true);
+        }}
+        onLeaveRoom={() => {
+          setSummaryMode('LEAVING');
+          setShowSummary(true);
+        }}
         onOpenAddBot={() => setShowAddBotModal(true)}
+        canRebuy={canRebuy}
+        rebuyDisabledReason={
+          isHandInProgress
+            ? 'Cannot rebuy while hand is in progress'
+            : 'Rebuy only allowed when chips reach ₹0'
+        }
       />
 
       {/* ══ ADD BOT MODAL ══ */}
@@ -1035,6 +1267,23 @@ export const PokerTable: React.FC<PokerTableProps> = ({
           onRemoveBot={(botPlayerId) => onRemoveBot && onRemoveBot(botPlayerId)}
         />
       )}
+
+      {/* ══ ZERO BALANCE 100K RELOAD PROMPT (Strictly when user chips & wallet hit ₹0) ══ */}
+      <ZeroBalanceReloadModal
+        isOpen={showZeroBalanceReload}
+        onClose={() => setShowZeroBalanceReload(false)}
+        onReloadSuccess={() => {
+          setShowZeroBalanceReload(false);
+          if (onRebuyChips && (!me || me.chips <= 0)) {
+            handleRebuySubmit(1000);
+          }
+        }}
+        onLeaveTable={() => {
+          setShowZeroBalanceReload(false);
+          handleLeaveTable();
+        }}
+      />
     </div>
   );
+
 };

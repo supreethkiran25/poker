@@ -65,6 +65,22 @@ describe('Bot Integration & Automation', () => {
       expect(Array.from(room.players.values())[0].name).toBe('Alice');
     });
 
+    it('allows a busted player with 0 chips to rebuy even during an active hand', () => {
+      const room = new Room('host-1', 'Alice', 'avatar-1');
+      room.addBot('whale');
+      room.startGame();
+
+      // Alice busts to 0 chips and is folded
+      const alice = room.engine.getPlayer('host-1')!;
+      alice.chips = 0;
+      alice.hasFolded = true;
+
+      const rebuyRes = room.rebuyPlayer('host-1', 1000);
+      expect(rebuyRes.success).toBe(true);
+      expect(alice.chips).toBe(1000);
+      expect(room.players.get('host-1')!.chips).toBe(1000);
+    });
+
     it('automates bot turns during gameplay', async () => {
       const room = new Room('host-1', 'Alice', 'avatar-1');
       const bot = room.addBot('shark');

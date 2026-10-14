@@ -3,7 +3,7 @@ import type { ActionType, RoomConfig } from './types.js';
 
 export const RoomConfigSchema = z.object({
   maxPlayers: z.number().int().min(2).max(10).default(8),
-  startingChips: z.number().int().min(0).max(100000000).default(10000),
+  startingChips: z.number().int().min(0).max(100000000).default(100000),
   smallBlind: z.number().int().min(1).max(500000).default(50),
   bigBlind: z.number().int().min(2).max(1000000).default(100),
   turnTimerSeconds: z.union([z.literal(15), z.literal(30), z.literal(45), z.literal(60)]).default(30),

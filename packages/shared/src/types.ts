@@ -48,7 +48,7 @@ export interface RoomConfig {
 
 export const DEFAULT_ROOM_CONFIG: RoomConfig = {
   maxPlayers: 8,
-  startingChips: 10000,
+  startingChips: 100000,
   smallBlind: 50,
   bigBlind: 100,
   turnTimerSeconds: 30,
@@ -419,6 +419,36 @@ export interface GamePublicState {
   legalActions: LegalAction[]; // for the calling player only
 }
 
+export type PlayerLedgerStatus = 'ACTIVE' | 'BUSTED' | 'LEFT';
+
+export interface PlayerLedgerEntry {
+  playerId: string;
+  playerName: string;
+  avatar: string;
+  isBot?: boolean;
+  initialBuyIn: number;
+  rebuysCount: number;
+  rebuysTotal: number;
+  totalInvested: number; // initialBuyIn + rebuysTotal
+  currentChips: number;  // current chips in play or final chips when leaving
+  netProfitLoss: number; // currentChips - totalInvested
+  status: PlayerLedgerStatus;
+  joinedAt: number;
+  leftAt?: number;
+  handsPlayed: number;
+  handsWon: number;
+}
+
+export interface RoomLedgerSummary {
+  totalBuyIns: number;      // sum of all totalInvested across all players (initial + rebuys)
+  totalChipsInPlay: number; // sum of current chips of players currently seated
+  currentPot: number;       // chips currently in the active pot / bets
+  totalCashOuts: number;    // sum of final chips taken by players who left
+  discrepancy: number;      // (totalChipsInPlay + currentPot + totalCashOuts) - totalBuyIns (should be 0)
+  totalHands: number;
+  biggestPot: number;
+}
+
 export interface RoomPublicState {
   code: string;
   status: RoomStatus;
@@ -439,6 +469,8 @@ export interface RoomPublicState {
   }[];
   createdAt: number;
   nextHandReadyPlayerIds?: string[];
+  ledger?: PlayerLedgerEntry[];
+  ledgerSummary?: RoomLedgerSummary;
 }
 
 export interface ChatMessage {

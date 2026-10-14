@@ -231,19 +231,26 @@ export function registerSocketHandlers(io: Server): void {
 
       const totalSeats = botCount + 1;
 
+      const buyIn =
+        typeof data.buyIn === 'number' && data.buyIn >= 100
+          ? Math.round(data.buyIn)
+          : 100000;
+      const smallBlind = Math.max(5, Math.floor(buyIn / 100));
+      const bigBlind = Math.max(10, Math.floor(buyIn / 50));
+
       const room = roomManager.createRoom(
         sessionData.player.playerId,
         sessionData.player.name,
         sessionData.player.avatar,
         {
           ...DEFAULT_ROOM_CONFIG,
-          smallBlind: 10,
-          bigBlind: 20,
+          smallBlind,
+          bigBlind,
           turnTimerSeconds: 30,
           maxPlayers: Math.max(6, totalSeats),
-          startingChips: 1000,
+          startingChips: buyIn,
         },
-        1000
+        buyIn
       );
 
       sessionData.currentRoomCode = room.code;
@@ -758,18 +765,29 @@ export function registerSocketHandlers(io: Server): void {
       const room = roomManager.getRoomByCode(code);
       if (!room) return;
 
-      const success = room.rebuyPlayer(sessionData.player.playerId, data?.amount);
-      if (success) {
-        broadcastRoomState(room);
-        broadcastGameState(room);
-
-        const rebuyAmt = data?.amount || room.config.startingChips;
-        io.to(`room:${room.code}`).emit('table:alert', {
+      const result = room.rebuyPlayer(sessionData.player.playerId, data?.amount);
+      if (!result.success) {
+        socket.emit('table:alert', {
           id: crypto.randomUUID(),
-          type: 'REBUY',
-          message: `🪙 ${sessionData.player.name} bought ₹${rebuyAmt.toLocaleString('en-IN')} chips!`,
+          type: 'INFO',
+          message: `⚠️ Rebuy rejected: ${result.reason || 'Rebuy not allowed.'}`,
         });
+        socket.emit('error:notification', {
+          code: 'REBUY_DENIED',
+          message: result.reason || 'Rebuy not allowed.',
+        });
+        return;
       }
+
+      broadcastRoomState(room);
+      broadcastGameState(room);
+
+      const rebuyAmt = data?.amount || room.config.startingChips;
+      io.to(`room:${room.code}`).emit('table:alert', {
+        id: crypto.randomUUID(),
+        type: 'REBUY',
+        message: `🪙 ${sessionData.player.name} bought ₹${rebuyAmt.toLocaleString('en-IN')} chips!`,
+      });
     });
 
     // 13. Ready for Next Hand
