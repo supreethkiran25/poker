@@ -671,9 +671,13 @@ export class Room {
           this.nextHandTimerHandle = setTimeout(() => {
             this.nextHandTimerHandle = null;
             if (this.engine.getPhase() === 'WAITING_FOR_PLAYERS') {
-              const res = this.startGame();
-              if (res.success && this.onStateChanged) {
-                this.onStateChanged();
+              try {
+                this.startGame();
+                if (this.onStateChanged) {
+                  this.onStateChanged();
+                }
+              } catch {
+                // Not ready to start yet
               }
             }
           }, 1500);
