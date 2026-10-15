@@ -436,6 +436,18 @@ export class Room {
     const activePlayerId = this.engine.getActivePlayerId();
     if (!activePlayerId) return;
 
+    // Bots act via scheduleBotTurnIfNeeded, no turn timer needed for bots
+    const activePlayer = this.players.get(activePlayerId);
+    if (activePlayer?.isBot) return;
+
+    // If only 1 human player exists in the room (playing against bots):
+    // Do NOT time out or rush the human player! Leave the player free to choose their bet size and actions at their own leisure.
+    const humanPlayers = Array.from(this.players.values()).filter((p) => !p.isBot);
+    if (humanPlayers.length <= 1) {
+      this.turnExpiresAt = null;
+      return;
+    }
+
     const durationMs = (this.config.turnTimerSeconds || 30) * 1000;
     this.turnExpiresAt = Date.now() + durationMs;
     this.timerHandle = setTimeout(() => {
@@ -454,6 +466,13 @@ export class Room {
   private handleTurnTimeout(): void {
     const activePlayerId = this.engine.getActivePlayerId();
     if (!activePlayerId) return;
+
+    // Never timeout human player playing solo vs bots
+    const humanPlayers = Array.from(this.players.values()).filter((p) => !p.isBot);
+    const activePlayer = this.players.get(activePlayerId);
+    if (!activePlayer?.isBot && humanPlayers.length <= 1) {
+      return;
+    }
 
     // Auto-check if legal, else auto-fold
     const state = this.engine.toPublicState(activePlayerId);
