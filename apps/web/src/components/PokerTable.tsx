@@ -352,7 +352,7 @@ export const PokerTable: React.FC<PokerTableProps> = ({
       : (isMobileLandscape ? 44 : 44);
     const ry = isPortrait
       ? (isTablet ? 42 : (isCrowded ? 40 : 38))
-      : (isMobileLandscape ? 36 : 38);
+      : (isMobileLandscape ? 38 : 41);
     const left = 50 + rx * Math.cos(angleRad);
     const top = 50 + ry * Math.sin(angleRad);
 
@@ -881,7 +881,7 @@ export const PokerTable: React.FC<PokerTableProps> = ({
               className="absolute z-20 flex flex-col items-center gap-1 sm:gap-1.5 pointer-events-auto"
               style={{
                 left: '50%',
-                top: isPortrait ? (isTablet ? '35%' : '34%') : '30%',
+                top: isPortrait ? (isTablet ? '39%' : '40%') : '41%',
                 transform: 'translate(-50%, -50%)',
               }}
             >
@@ -962,7 +962,7 @@ export const PokerTable: React.FC<PokerTableProps> = ({
                 className="absolute z-22 pointer-events-auto animate-fade-in"
                 style={{
                   left: '50%',
-                  top: isPortrait ? (isTablet ? '48%' : '47%') : '47%',
+                  top: isPortrait ? (isTablet ? '56%' : '55%') : '55%',
                   transform: 'translate(-50%, -50%)',
                 }}
               >

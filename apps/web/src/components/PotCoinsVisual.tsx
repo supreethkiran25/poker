@@ -94,63 +94,21 @@ export const PotCoinsVisual: React.FC<PotCoinsVisualProps> = ({
       onMouseLeave={() => setShowTooltip(false)}
       onClick={handleInteract}
     >
-      {/* ── Felt Contact Ambient Shadow ── */}
-      <div
-        className="absolute -bottom-1 w-36 sm:w-48 h-8 bg-black/65 rounded-full blur-md pointer-events-none"
-        style={{ transform: 'translateY(3px)' }}
-      />
-
-      {/* ── 3D Piled Chip Stacks & Shiny Gold Coins (Clear & Fully Visible Above Plaque) ── */}
-      <div className="relative flex items-end justify-center gap-1.5 sm:gap-2.5 px-3 pt-2 pb-0.5 mb-1.5 z-20 transition-transform duration-200 group-hover:scale-105 active:scale-95 cursor-pointer">
-        {/* Left gleaming 3D gold coin */}
-        <div className="relative -mr-1 z-30 mb-0.5 transition-transform hover:scale-110">
-          <GoldCoin3D sizePx={coinLeftSize} tiltDeg={-22} />
-        </div>
-
-        {/* Dynamic Vertical 3D Clay Chip Stacks */}
-        {stacks.map((stk, stackIdx) => {
-          const lateralOffset = stackIdx % 2 === 0 ? '-translate-y-0.5' : 'translate-y-0.5';
-          return (
-            <div
-              key={stackIdx}
-              className={`flex flex-col items-center relative z-20 ${lateralOffset}`}
-            >
-              <CasinoChipStack3D
-                color={stk.type}
-                count={stk.count}
-                sizePx={chipSize}
-                className="transition-transform hover:-translate-y-1 duration-150"
-              />
-            </div>
-          );
-        })}
-
-        {/* Center / Front resting 3D gold coin */}
-        <div className="relative -mx-1.5 z-30 mb-1 transition-transform hover:scale-110">
-          <GoldCoin3D sizePx={coinCenterSize} tiltDeg={-4} />
-        </div>
-
-        {/* Right gleaming 3D gold coin */}
-        <div className="relative -ml-1 z-30 mb-0.5 transition-transform hover:scale-110">
-          <GoldCoin3D sizePx={coinRightSize} tiltDeg={18} />
-        </div>
-      </div>
-
-      {/* ── Pot Plaque (Rupee Amount Badge Sitting Cleanly Below Coins) ── */}
+      {/* ── Pot Plaque (Sleek, Luxury Pot Badge with Integrated Gold Coin & Phase) ── */}
       {showPlaque && (
-        <div className="relative z-30 flex items-center gap-1.5 sm:gap-2 bg-gradient-to-r from-zinc-950/95 via-amber-950/60 to-zinc-950/95 backdrop-blur-xl px-3.5 py-0.5 sm:py-1 rounded-full border border-amber-400/60 shadow-[0_4px_22px_rgba(0,0,0,0.85),0_0_14px_rgba(245,158,11,0.25)] transition-all group-hover:border-amber-400">
-          {/* Gleaming micro 3D coin icon */}
-          <div className="w-4 h-4 rounded-full bg-gradient-to-tr from-amber-500 via-yellow-200 to-amber-600 flex items-center justify-center text-[9px] shadow-sm border border-amber-100/90 text-zinc-950 font-black shrink-0 animate-pulse">
+        <div className="relative z-30 flex items-center gap-1.5 sm:gap-2 bg-gradient-to-r from-zinc-950/95 via-amber-950/70 to-zinc-950/95 backdrop-blur-xl px-3.5 sm:px-4 py-1 sm:py-1.5 rounded-full border border-amber-400/70 shadow-[0_4px_20px_rgba(0,0,0,0.8),0_0_12px_rgba(245,158,11,0.25)] transition-all group-hover:border-amber-400">
+          {/* Gleaming 3D gold coin icon */}
+          <div className="w-5 h-5 rounded-full bg-gradient-to-tr from-amber-400 via-yellow-200 to-amber-600 flex items-center justify-center text-[10px] shadow-sm border border-amber-100 text-zinc-950 font-black shrink-0">
             ₹
           </div>
 
-          <span className="text-[9px] sm:text-[10px] uppercase tracking-[0.18em] text-amber-400/90 font-mono font-bold">
+          <span className="text-[10px] uppercase tracking-[0.18em] text-amber-400 font-mono font-bold">
             POT
           </span>
 
           <span className="text-amber-500/40 font-mono text-[10px]">•</span>
 
-          <span className="text-xs sm:text-sm font-black text-amber-300 font-mono tracking-tight drop-shadow-[0_1px_4px_rgba(245,158,11,0.4)]">
+          <span className="text-xs sm:text-sm font-black text-amber-300 font-mono tracking-tight drop-shadow-[0_1px_3px_rgba(245,158,11,0.5)]">
             {formatRupee(pot)}
           </span>
 
@@ -158,7 +116,7 @@ export const PotCoinsVisual: React.FC<PotCoinsVisualProps> = ({
           {phase && phase !== 'HAND_COMPLETE' && phase !== 'WAITING_FOR_PLAYERS' && phase !== 'STARTING' && (
             <>
               <span className="text-emerald-500/50 font-mono text-[10px] hidden sm:inline">•</span>
-              <span className="text-[8.5px] font-mono uppercase tracking-wider text-emerald-400 font-bold bg-emerald-950/60 px-1.5 py-0.2 rounded border border-emerald-500/30 hidden sm:inline">
+              <span className="text-[9px] font-mono uppercase tracking-wider text-emerald-300 font-bold bg-emerald-950/80 px-2 py-0.5 rounded-full border border-emerald-500/40">
                 {phase.replace(/_/g, ' ')}
               </span>
             </>

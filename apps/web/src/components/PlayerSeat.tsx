@@ -356,10 +356,10 @@ export const PlayerSeat: React.FC<PlayerSeatProps> = ({
           </div>
         )}
 
-        {/* Turn Countdown Pill on Seat Pod */}
+        {/* Turn Countdown Pill on Seat Pod (Positioned on top of pod to avoid overlapping cards below) */}
         {player.isTurn && secondsRemaining !== null && (
           <div
-            className={`absolute -bottom-2.5 left-1/2 -translate-x-1/2 z-30 px-2 py-0.5 rounded-full text-[9px] font-mono font-black flex items-center gap-1 shadow-xl border whitespace-nowrap transition-all ${
+            className={`absolute -top-2.5 left-1/2 -translate-x-1/2 z-30 px-2 py-0.5 rounded-full text-[9px] font-mono font-black flex items-center gap-1 shadow-xl border whitespace-nowrap transition-all ${
               secondsRemaining <= 5
                 ? 'bg-rose-600 border-rose-400 text-white animate-pulse ring-2 ring-rose-500/50'
                 : secondsRemaining <= 10
@@ -382,7 +382,7 @@ export const PlayerSeat: React.FC<PlayerSeatProps> = ({
           if (isUltraCompact && allHidden) return null;
           return (
             <div
-              className={`flex items-center mt-0.5 transition-all duration-300 ${
+              className={`flex items-center ${allHidden ? '-mt-2' : 'mt-0.5'} transition-all duration-300 ${
                 isWinner ? '-space-x-1 sm:space-x-1 scale-100 z-30' : '-space-x-3.5 sm:-space-x-2.5'
               }`}
             >
