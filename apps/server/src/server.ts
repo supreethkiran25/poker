@@ -1,5 +1,8 @@
-import express from 'express';
+import express, { type Request, type Response, type NextFunction } from 'express';
 import http from 'node:http';
+import path from 'node:path';
+import fs from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import { Server } from 'socket.io';
 import cors from 'cors';
 import { rateLimit } from 'express-rate-limit';
@@ -42,7 +45,7 @@ app.use(
 app.use(express.json());
 
 // Health & Keep-alive endpoint for Render (placed before rate limiting so tab pings are never blocked)
-app.get(['/health', '/api/keep-alive'], (_req, res) => {
+app.get(['/health', '/api/keep-alive'], (_req: Request, res: Response) => {
   res.json({
     status: 'ok',
     timestamp: Date.now(),
@@ -60,8 +63,9 @@ const apiLimiter = rateLimit({
 app.use('/api/', apiLimiter);
 
 // Room verification endpoint (for landing page / invite links)
-app.get('/api/rooms/:code', (req, res) => {
-  const room = roomManager.getRoomByCode(req.params.code);
+app.get('/api/rooms/:code', (req: Request, res: Response) => {
+  const code = Array.isArray(req.params.code) ? req.params.code[0] : req.params.code;
+  const room = code ? roomManager.getRoomByCode(code) : undefined;
   if (!room) {
     return res.status(404).json({ error: 'Room not found' });
   }
@@ -77,8 +81,9 @@ app.get('/api/rooms/:code', (req, res) => {
 });
 
 // Room hand history
-app.get('/api/rooms/:code/history', (req, res) => {
-  const room = roomManager.getRoomByCode(req.params.code);
+app.get('/api/rooms/:code/history', (req: Request, res: Response) => {
+  const code = Array.isArray(req.params.code) ? req.params.code[0] : req.params.code;
+  const room = code ? roomManager.getRoomByCode(code) : undefined;
   if (!room) {
     return res.status(404).json({ error: 'Room not found' });
   }
@@ -101,17 +106,13 @@ const io = new Server(server, {
 registerSocketHandlers(io);
 
 // Serve static frontend files if built
-import { fileURLToPath } from 'node:url';
-import path from 'node:path';
-import fs from 'node:fs';
-
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const webDistPath = path.resolve(__dirname, '../../web/dist');
 
 if (fs.existsSync(webDistPath)) {
   app.use(express.static(webDistPath));
-  app.get('*', (req, res, next) => {
+  app.get('*', (req: Request, res: Response, next: NextFunction) => {
     if (req.path.startsWith('/api/') || req.path.startsWith('/socket.io/')) {
       return next();
     }
